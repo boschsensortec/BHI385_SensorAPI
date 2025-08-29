@@ -22,8 +22,10 @@ $(API_LOCATION)/bhi385_logbin.c \
 $(API_LOCATION)/bhi385_parse.c \
 $(API_LOCATION)/bhi385_event_data.c \
 $(API_LOCATION)/bhi385_virtual_sensor_info_param.c \
+$(API_LOCATION)/bhi385_virtual_sensor_conf_param.c \
 $(API_LOCATION)/bhi385_system_param.c \
-$(API_LOCATION)/bhi385_bsx_algo_param.c
+$(API_LOCATION)/bhi385_bsx_algo_param.c \
+$(API_LOCATION)/bhi385_klio_param.c
 
 INCLUDEPATHS += . \
 $(COMMON_LOCATION)/common \

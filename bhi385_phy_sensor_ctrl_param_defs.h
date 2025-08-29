@@ -31,8 +31,8 @@
 * POSSIBILITY OF SUCH DAMAGE.
 *
 * @file       bhi385_phy_sensor_ctrl_param_defs.h
-* @date       2025-03-28
-* @version    v1.0.0
+* @date       2025-08-20
+* @version    v2.0.0
 *
 */
 
@@ -161,7 +161,7 @@ typedef struct
     uint8_t x;
     uint8_t y;
     uint8_t z;
-} BHI385_PACKED bhi385_phy_sensor_ctrl_param_gyro_crt_status;
+} BHI385_PACKED bhi385_phy_sensor_ctrl_param_gyro_crt_data;
 
 /*!
  *

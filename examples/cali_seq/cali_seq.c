@@ -65,13 +65,14 @@ static int8_t bhi3_perform_foc_crt(struct bhi385_foc_resp *acc_foc_status,
                                    struct bhi385_foc_resp *gyro_foc_status,
                                    struct bhi385_dev *dev,
                                    uint8_t flag);
-static int8_t bhi3_load_gyro_crt(const uint8_t *gyro_crt, struct bhi385_dev *dev);
 
 static int16_t convert_char_int(char *line, char *pattern1, char *pattern2);
 
 static bhi385_phy_sensor_ctrl_param_gyro_fast_offset_calib foc_resp_gyro_backup;
 static bhi385_phy_sensor_ctrl_param_accel_fast_offset_calib foc_resp_acc_backup;
 static uint8_t crt_backup[3] = { 0 };
+
+static bhi385_phy_sensor_ctrl_param_gyro_crt_data data_crt = { 0 };
 
 enum bhi385_intf intf;
 
@@ -300,7 +301,10 @@ int main(int argc, char *argv[])
                     }
                 }
 
-                rslt = bhi3_load_gyro_crt(crt_backup, &bhy);
+                data_crt.x = crt_backup[0];
+                data_crt.y = crt_backup[1];
+                data_crt.z = crt_backup[2];
+                rslt = bhi385_phy_sensor_ctrl_param_set_gyro_data(&data_crt, &bhy);
                 if (rslt != BHI385_OK)
                 {
                     printf("load gyro crt failed!\r\n");
@@ -417,72 +421,6 @@ int main(int argc, char *argv[])
 }
 
 /*!
- * @brief To set the Physical Sensor Control Parameters
- */
-static int8_t bhi3_physical_sensor_control_set_crt(uint8_t sensor_id,
-                                                   const uint8_t *payload,
-                                                   uint16_t len,
-                                                   uint8_t control_code,
-                                                   struct bhi385_dev *dev)
-{
-    int8_t rslt = BHI385_OK;
-
-    uint16_t cmnd_len = BHI385_LE24MUL(len + 1); /*1 byte added for control code */
-    uint8_t cmnd[cmnd_len];
-
-    memset(cmnd, 0, cmnd_len);
-    cmnd[0] = BHI385_PHY_SENSOR_CTRL_CODE(BHI385_PHY_SENSOR_CTRL_WRITE, control_code);
-    cmnd[1] = 0;
-
-    if (dev == NULL)
-    {
-        rslt = BHI385_E_NULL_PTR;
-    }
-    else
-    {
-        if (payload == NULL)
-        {
-            rslt = BHI385_E_NULL_PTR;
-        }
-        else
-        {
-            for (int i = 0; i < len; i++)
-            {
-                cmnd[i + 2] = *(payload + i);
-            }
-
-            rslt = bhi385_set_parameter(BHI385_PHY_SENSOR_CTRL_PARAM(sensor_id), cmnd, cmnd_len, dev);
-        }
-    }
-
-    return rslt;
-}
-
-/*!
- * @brief To set the Gyroscope CRT
- */
-static int8_t bhi3_load_gyro_crt(const uint8_t *gyro_crt, struct bhi385_dev *dev)
-{
-    int8_t rslt = BHI385_OK;
-
-    if (dev == NULL)
-    {
-        rslt = BHI385_E_NULL_PTR;
-    }
-    else
-    {
-        /*! Set the configuration parameter */
-        rslt = bhi3_physical_sensor_control_set_crt(BHI385_PHYS_SENSOR_ID_GYROSCOPE,
-                                                    gyro_crt,
-                                                    BHI385_PHY_CRT_CTRL_LEN,
-                                                    BHI385_PHY_GYRO_CRT_CTRL_CODE,
-                                                    dev);
-    }
-
-    return rslt;
-}
-
-/*!
  * @brief To perform foc and crt
  */
 static int8_t bhi3_perform_foc_crt(struct bhi385_foc_resp *acc_foc_status,
@@ -534,10 +472,9 @@ static int8_t bhi3_perform_foc_crt(struct bhi385_foc_resp *acc_foc_status,
     /* start  gyro crt process */
     if ((flag & 0x02) || flag == 0)
     {
-        bhi385_phy_sensor_ctrl_param_gyro_crt_status data_crt = { 0 };
 
         rslt = bhi385_phy_sensor_ctrl_param_gyro_start_comp_retrim(dev);
-        rslt = bhi385_phy_sensor_ctrl_param_gyro_get_crt_status(&data_crt, dev);
+        rslt = bhi385_phy_sensor_ctrl_param_gyro_get_crt_data(&data_crt, dev);
         if (rslt != BHI385_OK)
         {
             printf("CRT failed!\r\n");

@@ -31,14 +31,15 @@
 * POSSIBILITY OF SUCH DAMAGE.
 *
 * @file       bhi385_parse.c
-* @date       2025-03-28
-* @version    v1.0.0
+* @date       2025-08-20
+* @version    v2.0.0
 *
 */
 
 #include "bhi385.h"
 #include "verbose.h"
 #include "coines.h"
+#include "bhi385_klio_param.h"
 #include "bhi385_parse.h"
 #include <inttypes.h>
 
@@ -48,6 +49,7 @@
 static uint16_t count[MAXIMUM_VIRTUAL_SENSOR_LIST] = { 0 };
 static bool enable_ds[MAXIMUM_VIRTUAL_SENSOR_LIST] = { false };
 static int16_t odr_ds[MAXIMUM_VIRTUAL_SENSOR_LIST] = { 0 };
+static klio_info k_info;
 
 /**
 * @brief Function to convert time in tick to seconds and nanoseconds
@@ -1082,6 +1084,278 @@ void bhi385_parse_debug_message(const struct bhi385_fifo_parse_data_info *callba
     DATA("[DEBUG MSG]; T: %lu.%09lu; %s\r\n", s, ns, debug_msg);
 }
 
+void bhi385_parse_klio_handle_learnt_pattern(const struct bhi385_fifo_parse_data_info *callback_info,
+                                             uint32_t s,
+                                             uint32_t ns,
+                                             struct bhi385_dev *bhy)
+{
+    uint8_t tmp_buf[PARAM_BUF_LEN];
+    uint16_t bufsize = sizeof(tmp_buf);
+    klio_info *p_klio_info = bhi385_get_klio_info();
+    float similarity_result_buf[25]; /* Klio currently supports max 25 patterns */
+    float highest_similarity_score = 0.f;
+
+    /* Read out learnt pattern */
+    (void)bhi385_klio_param_read_pattern(0, tmp_buf, &bufsize, bhy);
+
+    DATA("SID: %u; T: %lu.%09lu; Pattern learnt: ", callback_info->sensor_id, s, ns);
+    for (uint16_t i = 0; i < bufsize; i++)
+    {
+        PRINT_D("%02x", tmp_buf[i]);
+    }
+
+    PRINT_D("\r\n");
+
+    /* Write back learnt pattern for recognition */
+    if (p_klio_info->auto_load_pattern && p_klio_info->auto_load_pattern_write_index < p_klio_info->max_patterns)
+    {
+        bhi385_klio_param_driver_error_state_t klio_driver_status;
+        bhi385_klio_param_sensor_state_t klio_sensor_state;
+
+        /* Write pattern for recognition, note that this resets recognition statistics (and repetition counts) */
+        (void)bhi385_klio_param_write_pattern(p_klio_info->auto_load_pattern_write_index, tmp_buf, bufsize, bhy);
+        (void)bhi385_klio_param_read_reset_driver_status((uint32_t *)&klio_driver_status, bhy);
+
+        /* write klio state (enable recognition, and also make sure learning is not disabled) */
+        klio_sensor_state.learning_enabled = 1;
+        klio_sensor_state.learning_reset = 0;
+        klio_sensor_state.recognition_enabled = 1;
+        klio_sensor_state.recognition_reset = 0;
+        (void)bhi385_klio_param_set_state(&klio_sensor_state, bhy);
+        (void)bhi385_klio_param_read_reset_driver_status((uint32_t *)&klio_driver_status, bhy);
+
+        if (p_klio_info->auto_load_pattern_write_index == 0)
+        {
+            /* This is the first pattern, unconditionally enable it for recognition. */
+            (void)bhi385_klio_param_set_pattern_states(KLIO_PATTERN_STATE_ENABLE,
+                                                       &p_klio_info->auto_load_pattern_write_index,
+                                                       1,
+                                                       bhy);
+            p_klio_info->auto_load_pattern_write_index++;
+        }
+        else if (p_klio_info->auto_load_pattern_write_index > 0)
+        {
+            /* Compare current pattern against all previously stored ones */
+            for (uint8_t i = 0; i < p_klio_info->auto_load_pattern_write_index; i++)
+            {
+                tmp_buf[i] = i;
+            }
+
+            PRINT_D("\n");
+
+            (void)bhi385_klio_param_similarity_score_multiple(p_klio_info->auto_load_pattern_write_index,
+                                                              tmp_buf,
+                                                              p_klio_info->auto_load_pattern_write_index,
+                                                              similarity_result_buf,
+                                                              bhy);
+
+            DATA("SID: %u; T: %lu.%09lu; Similarity score to already stored patterns: \n",
+                 callback_info->sensor_id,
+                 s,
+                 ns);
+            for (uint8_t i = 0; i < p_klio_info->auto_load_pattern_write_index; i++)
+            {
+                float tmp_score = similarity_result_buf[i];
+
+                PRINT_D("%d: %f ", i, tmp_score);
+
+                if (tmp_score > highest_similarity_score)
+                {
+                    highest_similarity_score = tmp_score;
+                }
+            }
+
+            if (highest_similarity_score < 0.6f) /* Enable if initial pattern or dissimilar */
+            {
+                (void)bhi385_klio_param_set_pattern_states(KLIO_PATTERN_STATE_ENABLE,
+                                                           &p_klio_info->auto_load_pattern_write_index,
+                                                           1,
+                                                           bhy);
+
+                p_klio_info->auto_load_pattern_write_index++;
+            }
+
+            PRINT_D("\r\n");
+        }
+    }
+}
+
+void bhi385_parse_klio(const struct bhi385_fifo_parse_data_info *callback_info, void *callback_ref)
+{
+    struct bhi385_parse_ref *parse_table = (struct bhi385_parse_ref *)callback_ref;
+    struct bhi385_dev *bhy = (struct bhi385_dev *)parse_table->bhy;
+    bhi385_event_data_klio_t data;
+    uint32_t s, ns;
+
+    if (callback_info->data_size != sizeof(bhi385_event_data_klio_t) + 1) /* Check for a valid payload size. Includes
+                                                                           * sensor ID */
+    {
+        return;
+    }
+
+    uint64_t timestamp = *callback_info->time_stamp; /* Store the last timestamp */
+
+    timestamp = timestamp * 15625; /* Timestamp is now in nanoseconds */
+    s = (uint32_t)(timestamp / UINT64_C(1000000000));
+    ns = (uint32_t)(timestamp - (s * UINT64_C(1000000000)));
+
+    memcpy(&data, callback_info->data_ptr, sizeof(data));
+
+    /*lint -e10 Error 10: Lint does not understand PRIxxx */
+    DATA(
+        "SID: %u; T: %" PRIu32 ".%09" PRIu32 "; Learning [Id:%d Progress:%u Change:%u]; Recognition[Id:%d Count:%f Score:%f]\r\n",
+        callback_info->sensor_id,
+        s,
+        ns,
+        data.learn.index,
+        data.learn.progress,
+        data.learn.change_reason,
+        data.recognize.index,
+        data.recognize.count,
+        data.recognize.score);
+
+    /*lint +e10 */
+
+    if (data.learn.index != -1) /* -1 means nothing was learnt. */
+    {
+        bhi385_parse_klio_handle_learnt_pattern(callback_info, s, ns, bhy);
+    }
+}
+
+/**
+* @brief Function to print log for log Klio
+* @param[in] callback_info  : Pointer to callback information
+* @param[in] data           : Data for log Klio
+* @param[in] s              : Second part of time
+* @param[in] ns             : Nanosecond part of time
+*/
+void print_log_klio_log(const struct bhi385_fifo_parse_data_info *callback_info,
+                        bhi385_klio_param_log_frame_t data,
+                        uint32_t s,
+                        uint32_t ns)
+{
+    DATA("SID: %u; T: %lu.%09lu; ax: %.9g, ay: %.9g, az: %.9g, gx: %.9g, gy: %.9g, gz: %.9g\r\n",
+         callback_info->sensor_id,
+         s,
+         ns,
+         data.accel[0],
+         data.accel[1],
+         data.accel[2],
+         data.gyro[0],
+         data.gyro[1],
+         data.gyro[2]);
+}
+
+/**
+* @brief Function to stream and log for log Klio
+* @param[in] flag           : Flag for enabling/disabling downsampling check
+* @param[in] callback_info  : Pointer to callback information
+* @param[in] data           : Data for log Klio
+* @param[in] s              : Second part of time
+* @param[in] ns             : Nanosecond part of time
+* @param[in] tns            : Total time in nanoseconds
+* @param[in] parse_table    : Pointer to parse table
+* @param[in] parse_flag     : Parse flag
+*/
+void stream_and_log_klio_log(bool flag,
+                             const struct bhi385_fifo_parse_data_info *callback_info,
+                             bhi385_klio_param_log_frame_t data,
+                             uint32_t s,
+                             uint32_t ns,
+                             uint64_t tns,
+                             struct bhi385_parse_ref *parse_table,
+                             uint8_t parse_flag)
+{
+    if (parse_flag & PARSE_FLAG_STREAM)
+    {
+        if (flag)
+        {
+            if ((count[callback_info->sensor_id] % odr_ds[callback_info->sensor_id] == 0))
+            {
+                print_log_klio_log(callback_info, data, s, ns);
+            }
+        }
+        else
+        {
+            if (odr_ds[callback_info->sensor_id] != 0)
+            {
+                print_log_klio_log(callback_info, data, s, ns);
+            }
+        }
+    }
+    else
+    {
+        if (parse_flag & PARSE_FLAG_HEXSTREAM)
+        {
+            stream_hex_data(callback_info->sensor_id, s, ns, callback_info->data_size - 1, callback_info->data_ptr);
+        }
+    }
+
+    if (parse_flag & PARSE_FLAG_LOG)
+    {
+        log_data(callback_info->sensor_id,
+                 tns,
+                 callback_info->data_size - 1,
+                 callback_info->data_ptr,
+                 &parse_table->logdev);
+    }
+}
+
+/**
+* @brief Function to parse log Klio
+* @param[in] callback_info : Pointer to callback information
+* @param[in] callback_ref  : Pointer to callback reference
+*/
+void bhi385_parse_klio_log(const struct bhi385_fifo_parse_data_info *callback_info, void *callback_ref)
+{
+    uint32_t s, ns;
+    uint64_t tns;
+    struct bhi385_parse_ref *parse_table = (struct bhi385_parse_ref *)callback_ref;
+    bhi385_klio_param_log_frame_t data;
+    uint8_t parse_flag;
+    struct bhi385_parse_sensor_details *sensor_details;
+    bool flag;
+
+    if (!parse_table || !callback_info)
+    {
+        ERROR("Null reference\r\r\n");
+
+        return;
+    }
+
+    sensor_details = bhi385_parse_get_sensor_details(callback_info->sensor_id, parse_table);
+    if (!sensor_details)
+    {
+        ERROR("Parse slot not defined\r\n");
+
+        return;
+    }
+
+    parse_flag = sensor_details->parse_flag;
+
+    time_to_s_ns(*callback_info->time_stamp, &s, &ns, &tns);
+
+    memcpy(&data, callback_info->data_ptr, sizeof(data));
+
+    if (enable_ds[callback_info->sensor_id] == true)
+    {
+        flag = true;
+
+        stream_and_log_klio_log(flag, callback_info, data, s, ns, tns, parse_table, parse_flag);
+
+        check_stream_log_flags(callback_info, parse_flag);
+
+    }
+    else
+    {
+        flag = false;
+
+        stream_and_log_klio_log(flag, callback_info, data, s, ns, tns, parse_table, parse_flag);
+    }
+
+    count[callback_info->sensor_id]++;
+}
+
 /**
 * @brief Function to print log for Multi-tap
 * @param[in] callback_info  : Pointer to callback information
@@ -1209,6 +1483,27 @@ void bhi385_parse_multitap(const struct bhi385_fifo_parse_data_info *callback_in
     }
 
     count[callback_info->sensor_id]++;
+}
+
+/**
+* @brief Function to set Klio information (capabilities, state and runtime configuration)
+* @param[in] klio_info : Klio information
+*/
+void bhi385_set_klio_info(const klio_info* info)
+{
+    k_info.max_patterns = info->max_patterns;
+    k_info.max_pattern_blob_size = info->max_pattern_blob_size;
+    k_info.auto_load_pattern_write_index = info->auto_load_pattern_write_index;
+    k_info.auto_load_pattern = info->auto_load_pattern;
+}
+
+/**
+* @brief Function to get Klio information (capabilities, state and runtime configuration)
+ * @return Klio information
+*/
+klio_info* bhi385_get_klio_info(void)
+{
+    return &k_info;
 }
 
 /**
@@ -1382,4 +1677,53 @@ bool bhi385_get_downsampling_flag(uint8_t sen_id)
 void bhi385_set_downsampling_odr(uint8_t sen_id, int16_t odr)
 {
     odr_ds[sen_id] = odr;
+}
+
+void bhi385_parse_step_counter_data(const struct bhi385_fifo_parse_data_info *callback_info, void *callback_ref)
+{
+    uint32_t s, ns;
+    uint32_t data;
+
+    (void)callback_ref;
+
+    if (callback_info->data_size != 5) /* Check for a valid payload size. Includes sensor ID */
+    {
+        return;
+    }
+
+    data = BHI385_LE2U32(callback_info->data_ptr);
+
+    uint64_t timestamp = *callback_info->time_stamp; /* Store the last timestamp */
+
+    timestamp = timestamp * 15625; /* Timestamp is now in nanoseconds */
+    s = (uint32_t)(timestamp / UINT64_C(1000000000));
+    ns = (uint32_t)(timestamp - (s * UINT64_C(1000000000)));
+
+    /*lint -e10 Error 10: Lint does not understand PRIxxx */
+    DATA("SID: %u; T: %lu.%09lu; Number of step: %lu\r\n", callback_info->sensor_id, s, ns, data);
+
+    /*lint +e10 */
+}
+
+void bhi385_parse_wrist_wear_wakeup_data(const struct bhi385_fifo_parse_data_info *callback_info, void *callback_ref)
+{
+    uint32_t s, ns;
+
+    (void)callback_ref;
+
+    if (callback_info->data_size != 1) /* Check for a valid payload size. Includes sensor ID */
+    {
+        return;
+    }
+
+    uint64_t timestamp = *callback_info->time_stamp; /* Store the last timestamp */
+
+    timestamp = timestamp * 15625; /* Timestamp is now in nanoseconds */
+    s = (uint32_t)(timestamp / UINT64_C(1000000000));
+    ns = (uint32_t)(timestamp - (s * UINT64_C(1000000000)));
+
+    /*lint -e10 Error 10: Lint does not understand PRIxxx */
+    DATA("SID: %u; T: %lu.%09lu; Wake-up\r\n", callback_info->sensor_id, s, ns);
+
+    /*lint +e10 */
 }

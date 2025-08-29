@@ -31,14 +31,15 @@
 * POSSIBILITY OF SUCH DAMAGE.
 *
 * @file       bhi385_api_entry.c
-* @date       2025-03-28
-* @version    v1.0.0
+* @date       2025-08-20
+* @version    v2.0.0
 *
 */
 #include "bhi385.h"
 #include "bhi385_defs.h"
 #include "bhi385_activity_param.h"
 #include "bhi385_bsx_algo_param.h"
+#include "bhi385_klio_param.h"
 #include "bhi385_multi_tap_param.h"
 #include "bhi385_phy_sensor_ctrl_param.h"
 #include "bhi385_system_param.h"
@@ -105,7 +106,8 @@ const SensorAPIEntry bhi385_sensor_api_entry[] = {
     { "bhy_phy_sensor_ctrl_param_gyro_get_fast_startup_cfg",
       (void *)bhi385_phy_sensor_ctrl_param_gyro_get_fast_startup_cfg },
     { "bhy_phy_sensor_ctrl_param_gyro_start_comp_retrim", (void *)bhi385_phy_sensor_ctrl_param_gyro_start_comp_retrim },
-    { "bhy_phy_sensor_ctrl_param_gyro_get_crt_status", (void *)bhi385_phy_sensor_ctrl_param_gyro_get_crt_status },
+    { "bhy_phy_sensor_ctrl_param_gyro_get_crt_data", (void *)bhi385_phy_sensor_ctrl_param_gyro_get_crt_data },
+    { "bhy_phy_sensor_ctrl_param_set_gyro_data", (void *)bhi385_phy_sensor_ctrl_param_set_gyro_data },
     { "bhy_phy_sensor_ctrl_param_gyro_set_power_mode", (void *)bhi385_phy_sensor_ctrl_param_gyro_set_power_mode },
     { "bhy_phy_sensor_ctrl_param_gyro_get_power_mode", (void *)bhi385_phy_sensor_ctrl_param_gyro_get_power_mode },
     { "bhy_phy_sensor_ctrl_param_gyro_set_auto_trim_cfg", (void *)bhi385_phy_sensor_ctrl_param_gyro_set_auto_trim_cfg },
@@ -183,13 +185,30 @@ const SensorAPIEntry bhi385_sensor_api_entry[] = {
     { "bhy_parse_scalar_event", (void *)bhi385_parse_scalar_event },
     { "bhy_parse_activity", (void *)bhi385_parse_activity }, { "bhy_parse_generic", (void *)bhi385_parse_generic },
     { "bhy_parse_debug_message", (void *)bhi385_parse_debug_message },
+    { "bhy_parse_step_counter_data", (void *)bhi385_parse_step_counter_data },
+    { "bhy_parse_wrist_wear_wakeup_data", (void *)bhi385_parse_wrist_wear_wakeup_data },
 
     /*{"bhy_parse_acc_gyro", (void *)bhi385_parse_acc_gyro}, */
     { "bhy_parse_multitap", (void *)bhi385_parse_multitap },
     { "bhy_parse_wrist_gesture_detect", (void *)bhi385_parse_wrist_gesture_detect },
     { "bhy_set_downsampling_flag", (void *)bhi385_set_downsampling_flag },
     { "bhy_get_downsampling_flag", (void *)bhi385_get_downsampling_flag },
-    { "bhy_set_downsampling_odr", (void *)bhi385_set_downsampling_odr }, { "end of list", NULL }
+    { "bhy_set_downsampling_odr", (void *)bhi385_set_downsampling_odr },
+    { "bhy_klio_param_read_reset_driver_status", (void *)bhi385_klio_param_read_reset_driver_status },
+    { "bhy_klio_param_read_pattern", (void *)bhi385_klio_param_read_pattern },
+    { "bhy_klio_param_set_state", (void *)bhi385_klio_param_set_state },
+    { "bhy_klio_param_get_state", (void *)bhi385_klio_param_get_state },
+    { "bhy_klio_param_write_pattern", (void *)bhi385_klio_param_write_pattern },
+    { "bhy_klio_param_set_pattern_states", (void *)bhi385_klio_param_set_pattern_states },
+    { "bhy_klio_param_similarity_score", (void *)bhi385_klio_param_similarity_score },
+    { "bhy_klio_param_similarity_score_multiple", (void *)bhi385_klio_param_similarity_score_multiple },
+    { "bhy_klio_param_set_parameter", (void *)bhi385_klio_param_set_parameter },
+    { "bhy_klio_param_get_parameter", (void *)bhi385_klio_param_get_parameter },
+    { "bhy_klio_param_set_pattern_parameter", (void *)bhi385_klio_param_set_pattern_parameter },
+    { "bhy_klio_param_get_pattern_parameter", (void *)bhi385_klio_param_get_pattern_parameter },
+    { "bhy_klio_param_reset", (void *)bhi385_klio_param_reset }, { "bhy_parse_klio", (void *)bhi385_parse_klio },
+    { "bhy_parse_klio_log", (void *)bhi385_parse_klio_log }, { "bhy_get_klio_info", (void *)bhi385_get_klio_info },
+    { "bhy_set_klio_info", (void *)bhi385_set_klio_info }, { "end of list", NULL }
 
     /*lint +e611 */
 };

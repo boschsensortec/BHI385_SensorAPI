@@ -31,8 +31,8 @@
 * POSSIBILITY OF SUCH DAMAGE.
 *
 * @file       bhi385_bsx_algo_param_defs.h
-* @date       2025-03-28
-* @version    v1.0.0
+* @date       2025-08-20
+* @version    v2.0.0
 *
 */
 
@@ -53,6 +53,7 @@ extern "C" {
 
 #define BHI385_BSX_STATE_STRUCT_LEN         UINT8_C(68)
 #define BHI385_BSX_STATE_BLOCK_LEN          UINT8_C(64)
+#define BHI385_BSX_STATE_BLOCK_NUMBER       UINT8_C(0x7F)
 #define BHI385_BSX_STATE_TRANSFER_COMPLETE  UINT8_C(0x80)
 #define BHI385_BSX_STATE_MAX_BLOCKS         UINT8_C(20)
 

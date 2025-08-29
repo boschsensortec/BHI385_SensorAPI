@@ -31,8 +31,8 @@
 * POSSIBILITY OF SUCH DAMAGE.
 *
 * @file       bhi385_parse.h
-* @date       2025-03-28
-* @version    v1.0.0
+* @date       2025-08-20
+* @version    v2.0.0
 *
 */
 #ifndef __BHI385_PARSE_H__
@@ -47,6 +47,7 @@ extern "C" {
 
 #include "bhi385.h"
 #include "bhi385_logbin.h"
+#include "bhi385_klio_param.h"
 
 #define PARSE_FLAG_NONE              UINT8_C(0x00)
 #define PARSE_FLAG_STREAM            UINT8_C(0x01)
@@ -70,6 +71,17 @@ struct bhi385_parse_ref
     struct bhi385_dev *bhy;
     struct bhi385_logbin_dev logdev;
 };
+
+/* *INDENT-OFF* */
+/* Contains information about klio capabilities and current state, as well as runtime configuration */
+typedef struct
+{
+    uint8_t max_patterns;
+    uint8_t max_pattern_blob_size;
+    uint8_t auto_load_pattern_write_index;
+    uint8_t auto_load_pattern;
+} klio_info;
+/* *INDENT-ON* */
 
 /**
 * @brief Function to get sensor details
@@ -137,6 +149,25 @@ void bhi385_parse_generic(const struct bhi385_fifo_parse_data_info *callback_inf
 void bhi385_parse_debug_message(const struct bhi385_fifo_parse_data_info *callback_info, void *callback_ref);
 
 /**
+* @brief Function to parse Klio
+* @param[in] callback_info : Pointer to callback information
+* @param[in] callback_ref  : Pointer to callback reference
+*/
+void bhi385_parse_klio(const struct bhi385_fifo_parse_data_info *callback_info, void *callback_ref);
+
+void bhi385_parse_klio_handle_learnt_pattern(const struct bhi385_fifo_parse_data_info *callback_info,
+                                             uint32_t s,
+                                             uint32_t ns,
+                                             struct bhi385_dev *bhy);
+
+/**
+* @brief Function to parse log Klio
+* @param[in] callback_info : Pointer to callback information
+* @param[in] callback_ref  : Pointer to callback reference
+*/
+void bhi385_parse_klio_log(const struct bhi385_fifo_parse_data_info *callback_info, void *callback_ref);
+
+/**
 * @brief Function to parse for Multi-tap
 * @param[in] callback_info : Pointer to callback information
 * @param[in] callback_ref  : Pointer to callback reference
@@ -170,6 +201,32 @@ bool bhi385_get_downsampling_flag(uint8_t sen_id);
 * @param[in] enable : Down sampling ratio
 */
 void bhi385_set_downsampling_odr(uint8_t sen_id, int16_t odr);
+
+/**
+* @brief Function to set Klio information (capabilities, state and runtime configuration)
+* @param[in] klio_info : Klio information
+*/
+void bhi385_set_klio_info(const klio_info* info);
+
+/**
+* @brief Function to get Klio information (capabilities, state and runtime configuration)
+* @return Klio information
+*/
+klio_info* bhi385_get_klio_info(void);
+
+/**
+* @brief Function to parse log Step counter
+* @param[in] callback_info : Pointer to callback information
+* @param[in] callback_ref  : Pointer to callback reference
+*/
+void bhi385_parse_step_counter_data(const struct bhi385_fifo_parse_data_info *callback_info, void *callback_ref);
+
+/**
+* @brief Function to parse log Wrist Wear Wakeup
+* @param[in] callback_info : Pointer to callback information
+* @param[in] callback_ref  : Pointer to callback reference
+*/
+void bhi385_parse_wrist_wear_wakeup_data(const struct bhi385_fifo_parse_data_info *callback_info, void *callback_ref);
 
 /* End of CPP Guard */
 #ifdef __cplusplus
