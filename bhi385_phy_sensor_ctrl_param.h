@@ -31,8 +31,8 @@
 * POSSIBILITY OF SUCH DAMAGE.
 *
 * @file       bhi385_phy_sensor_ctrl_param.h
-* @date       2025-03-28
-* @version    v1.0.0
+* @date       2025-08-20
+* @version    v2.0.0
 *
 */
 
@@ -181,8 +181,17 @@ int8_t bhi385_phy_sensor_ctrl_param_gyro_start_comp_retrim(struct bhi385_dev *de
  * @param[in]  dev     : Device instance
  * @return API error codes
  */
-int8_t bhi385_phy_sensor_ctrl_param_gyro_get_crt_status(bhi385_phy_sensor_ctrl_param_gyro_crt_status* crt,
-                                                        struct bhi385_dev *dev);
+int8_t bhi385_phy_sensor_ctrl_param_gyro_get_crt_data(bhi385_phy_sensor_ctrl_param_gyro_crt_data* crt,
+                                                      struct bhi385_dev *dev);
+
+/**
+* @brief Function to set gyroscope CRT offset values
+* @param[in] crt     : Reference to Gyro CRT offset values
+* @param[in]  dev     : Device instance
+* @return API error codes
+*/
+int8_t bhi385_phy_sensor_ctrl_param_set_gyro_data(bhi385_phy_sensor_ctrl_param_gyro_crt_data* gyro_crt,
+                                                  struct bhi385_dev *dev);
 
 /**
  * @brief Function to set gyroscope power mode

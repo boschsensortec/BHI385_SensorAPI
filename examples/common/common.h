@@ -44,6 +44,7 @@
 #include "bhi385_defs.h"
 #include "bhi385_activity_param.h"
 #include "bhi385_bsx_algo_param.h"
+#include "bhi385_klio_param.h"
 #include "bhi385_multi_tap_param.h"
 #include "bhi385_phy_sensor_ctrl_param.h"
 #include "bhi385_system_param.h"
@@ -78,6 +79,7 @@ float get_sensor_dynamic_range_scaling(uint8_t sensor_id, float dynamic_range);
 char *get_sensor_si_unit(uint8_t sensor_id);
 char *get_sensor_parse_format(uint8_t sensor_id);
 char *get_sensor_axis_names(uint8_t sensor_id);
+char *get_klio_error(bhi385_klio_param_driver_error_state_t error);
 
 void setup_interfaces(bool reset_power, enum bhi385_intf intf);
 void setup_interfaces_with_port(bool reset_power, enum bhi385_intf intf, const char *com_port);

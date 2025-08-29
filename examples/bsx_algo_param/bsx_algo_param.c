@@ -37,7 +37,6 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdbool.h>
 #include <inttypes.h>
 
 #include "bhi385.h"
@@ -50,7 +49,7 @@
 static void print_api_error(int8_t rslt, struct bhi385_dev *dev);
 static void upload_firmware(uint8_t boot_stat, struct bhi385_dev *dev);
 
-#define PARAMETER_ID  0X201
+#define PARAMETER_ID  0x0201
 
 enum bhi385_intf intf;
 
@@ -62,6 +61,7 @@ int main(void)
     struct bhi385_dev bhy;
     uint8_t hintr_ctrl, hif_ctrl, boot_status;
     struct bhi385_bsx_algo_param_version get_bsx_ver = { 0 };
+    struct bhi385_virtual_sensor_conf_param_conf sensor_conf = { 0 };
 
 #ifdef BHI385_USE_I2C
     intf = BHI385_I2C_INTERFACE;
@@ -143,6 +143,21 @@ int main(void)
         {
             printf("Boot successful. Kernel version %u.\r\n", version);
         }
+
+        rslt = bhi385_update_virtual_sensor_list(&bhy);
+        print_api_error(rslt, &bhy);
+
+        sensor_conf.sample_rate = 50.0f; /* Read out data measured at 50Hz */
+        sensor_conf.latency = 0; /* Report immediately */
+        rslt = bhi385_virtual_sensor_conf_param_set_cfg(BHI385_SENSOR_ID_ACC, &sensor_conf, &bhy);
+        print_api_error(rslt, &bhy);
+
+        rslt = bhi385_virtual_sensor_conf_param_set_cfg(BHI385_SENSOR_ID_GYRO, &sensor_conf, &bhy);
+        print_api_error(rslt, &bhy);
+
+        printf("Enabled %s at %.2fHz.\r\n", get_sensor_name(BHI385_SENSOR_ID_ACC), sensor_conf.sample_rate);
+        printf("Enabled %s at %.2fHz.\r\n", get_sensor_name(BHI385_SENSOR_ID_GYRO), sensor_conf.sample_rate);
+        coines_delay_msec(500);
 
         /* get the BSX version */
         rslt = bhi385_bsx_algo_param_get_bsx_version(&get_bsx_ver, &bhy);

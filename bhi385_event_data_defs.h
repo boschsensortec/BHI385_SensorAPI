@@ -31,8 +31,8 @@
 * POSSIBILITY OF SUCH DAMAGE.
 *
 * @file       bhi385_event_data_defs.h
-* @date       2025-03-28
-* @version    v1.0.0
+* @date       2025-08-20
+* @version    v2.0.0
 *
 */
 
@@ -66,6 +66,63 @@ struct bhi385_event_data_quaternion
     int16_t w;
     uint16_t accuracy;
 };
+
+typedef struct
+{
+    uint8_t instance;
+
+    /*!
+     * A value of -1 means no new learning has occurred. If the value is >= 0,
+     * then a new pattern has been learnt, and reading of this pattern may be
+     * performed.
+     */
+    int8_t index;
+
+    /*!
+     * While learning a new pattern, this field counts from 0 to 100. When 100 is
+     * reached a new pattern will be learnt. If learning is interrupted, this
+     * progress will return to 0, and change reason will be set to indicate
+     * why learning was interrupted.
+     */
+    uint8_t progress;
+
+    /*!
+     * | Value | Description                                                            |
+     * |:-----:|:-----------------------------------------------------------------------|
+     * | 0     | Learning is progressing.                                               |
+     * | 1     | Learning was interrupted by a non-repetitive activity.                 |
+     * | 2     | Learning was interrupted because no significant movement was detected. |
+     */
+    uint8_t change_reason;
+} BHI385_PACKED bhi385_event_data_klio_learning_t;
+
+typedef struct
+{
+    uint8_t instance;
+
+    /*! The index of the recognized activity. 255 means no activity was
+     * recognized. */
+    uint8_t index;
+
+    /*! The current repetition count of the recognized activity. */
+    float count;
+
+    /*! The current score of the recognized activity. */
+    float score;
+} BHI385_PACKED bhi385_event_data_klio_recognition_t;
+
+/*!
+ *
+ * @brief bhy klio combined data structure
+ *
+ * When the algorithm generates a new data frame, it is sent in this structure.
+ *
+ */
+typedef struct
+{
+    bhi385_event_data_klio_learning_t learn;
+    bhi385_event_data_klio_recognition_t recognize;
+} BHI385_PACKED bhi385_event_data_klio_t;
 
 /*!
  * Multi Tap Setting.

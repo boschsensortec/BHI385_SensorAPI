@@ -31,13 +31,14 @@
 * POSSIBILITY OF SUCH DAMAGE.
 *
 * @file       bhi385_phy_sensor_ctrl_param.c
-* @date       2025-03-28
-* @version    v1.0.0
+* @date       2025-08-20
+* @version    v2.0.0
 *
 */
 
 #include "bhi385_phy_sensor_ctrl_param.h"
 #include "bhi385_hif.h"
+#include "bhi385.h"
 
 #define BHI385_PHY_SENSOR_CTRL_PARAM_READ_LENGTH          UINT8_C(4)
 
@@ -684,8 +685,8 @@ int8_t bhi385_phy_sensor_ctrl_param_gyro_start_comp_retrim(struct bhi385_dev *de
  * @param[in]  dev     : Device instance
  * @return API error codes
  */
-int8_t bhi385_phy_sensor_ctrl_param_gyro_get_crt_status(bhi385_phy_sensor_ctrl_param_gyro_crt_status* crt,
-                                                        struct bhi385_dev *dev)
+int8_t bhi385_phy_sensor_ctrl_param_gyro_get_crt_data(bhi385_phy_sensor_ctrl_param_gyro_crt_data* crt,
+                                                      struct bhi385_dev *dev)
 {
     int8_t rslt;
     uint8_t command;
@@ -713,6 +714,41 @@ int8_t bhi385_phy_sensor_ctrl_param_gyro_get_crt_status(bhi385_phy_sensor_ctrl_p
             crt->y = payload[2 + BHI385_PHY_SENSOR_CTRL_PARAM_CODE_LENGTH];
             crt->z = payload[3 + BHI385_PHY_SENSOR_CTRL_PARAM_CODE_LENGTH];
         }
+    }
+
+    return rslt;
+}
+
+/**
+ * @brief Function to set gyroscope Component ReTrim (CRT) offset values
+ * @param[in] crt     : Reference to Gyro CRT offset values
+ * @param[in]  dev     : Device instance
+ * @return API error codes
+ */
+int8_t bhi385_phy_sensor_ctrl_param_set_gyro_data(bhi385_phy_sensor_ctrl_param_gyro_crt_data* gyro_crt,
+                                                  struct bhi385_dev *dev)
+{
+    int8_t rslt = BHI385_OK;
+    uint16_t cmnd_len = BHI385_LE24MUL(BHI385_PHY_GYRO_CRT_CTRL_LEN + 1); /*1 byte added for control code */
+    uint8_t cmnd[cmnd_len];
+
+    memset(cmnd, 0, cmnd_len);
+
+    cmnd[0] = BHI385_PHY_SENSOR_CTRL_CODE(BHI385_PHY_SENSOR_CTRL_WRITE, BHI385_PHY_GYRO_CRT_CTRL_CODE);
+
+    if (dev == NULL || gyro_crt == NULL)
+    {
+        rslt = BHI385_E_NULL_PTR;
+    }
+    else
+    {
+        cmnd[1] = gyro_crt->status;
+        cmnd[2] = gyro_crt->x;
+        cmnd[3] = gyro_crt->y;
+        cmnd[4] = gyro_crt->z;
+
+        rslt = bhi385_set_parameter(BHI385_PHY_SENSOR_CTRL_PARAM(BHI385_PHYS_SENSOR_ID_GYROSCOPE), cmnd, cmnd_len, dev);
+
     }
 
     return rslt;

@@ -31,8 +31,8 @@
 * POSSIBILITY OF SUCH DAMAGE.
 *
 * @file       bhi385_defs.h
-* @date       2025-03-28
-* @version    v1.0.0
+* @date       2025-08-20
+* @version    v2.0.0
 *
 */
 
@@ -166,7 +166,7 @@ extern "C" {
 #define BHI385_PHY_GYRO_CRT_CTRL_CODE                                  UINT8_C(0x04)
 #define BHI385_PHY_GYRO_CRT_STATUS_SUCCESS                             UINT8_C(0x00)
 #define BHI385_PHY_GYRO_ENABLE_CRT                                     UINT8_C(0x01)
-#define BHI385_PHY_GYRO_CRT_CTRL_LEN                                   1
+#define BHI385_PHY_GYRO_CRT_CTRL_LEN                                   3
 
 #define BHI385_PHY_GYRO_LOW_POWER_MODE_CTRL_CODE                       UINT8_C(0x05)
 #define BHI385_PHY_GYRO_NORMAL_POWER_MODE                              UINT8_C(0x00)

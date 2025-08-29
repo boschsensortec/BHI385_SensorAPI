@@ -978,6 +978,12 @@ char *get_sensor_name(uint8_t sensor_id)
         case BHI385_SENSOR_ID_GAS_WU:
             ret = "Gas wake up";
             break;
+        case BHI385_SENSOR_ID_KLIO:
+            ret = "Klio";
+            break;
+        case BHI385_SENSOR_ID_KLIO_LOG:
+            ret = "Klio log";
+            break;
         case BHI385_SENSOR_ID_SI_ACCEL:
             ret = "SI Accel";
             break;
@@ -1270,6 +1276,9 @@ char *get_sensor_parse_format(uint8_t sensor_id)
         case BHI385_SENSOR_ID_STC_LP_WU:
             ret = "u32";
             break;
+        case BHI385_SENSOR_ID_KLIO:
+            ret = "u8,u8,u8,u8,u8,u8,f,f";
+            break;
         case BHI385_SENSOR_ID_SI_ACCEL:
         case BHI385_SENSOR_ID_SI_GYROS:
             ret = "f,f,f";
@@ -1395,6 +1404,9 @@ char *get_sensor_axis_names(uint8_t sensor_id)
         case BHI385_SENSOR_ID_GAS_WU:
             ret = "g";
             break;
+        case BHI385_SENSOR_ID_KLIO:
+            ret = "lin,lid,lpr,lcr,rin,rid,rc,rsc";
+            break;
         case BHI385_SENSOR_ID_LIGHT:
         case BHI385_SENSOR_ID_LIGHT_WU:
             ret = "l";
@@ -1456,6 +1468,45 @@ char *get_sensor_axis_names(uint8_t sensor_id)
         default:
             ret = "";
 
+    }
+
+    return ret;
+}
+
+char *get_klio_error(bhi385_klio_param_driver_error_state_t error)
+{
+    char *ret = "";
+
+    switch (error)
+    {
+        case KLIO_DRIVER_ERROR_NONE:
+            break;
+        case KLIO_DRIVER_ERROR_INVALID_PARAMETER:
+            ret = "[Klio error] Invalid parameter";
+            break;
+        case KLIO_DRIVER_ERROR_PARAMETER_OUT_OF_RANGE:
+            ret = "[Klio error] Parameter out of range";
+            break;
+        case KLIO_DRIVER_ERROR_INVALID_PATTERN_OPERATION:
+            ret = "[Klio error] Invalid pattern operation";
+            break;
+        case KLIO_DRIVER_ERROR_NOT_IMPLEMENTED:
+            ret = "[Klio error] Not implemented";
+            break;
+        case KLIO_DRIVER_ERROR_BUFSIZE:
+            ret = "[Klio error] Buffer size";
+            break;
+        case KLIO_DRIVER_ERROR_INTERNAL:
+            ret = "[Klio error] Internal";
+            break;
+        case KLIO_DRIVER_ERROR_UNDEFINED:
+            ret = "[Klio error] Undefined";
+            break;
+        case KLIO_DRIVER_ERROR_OPERATION_PENDING:
+            ret = "[Klio error] Operation pending";
+            break;
+        default:
+            ret = "[Klio error] Unknown error code";
     }
 
     return ret;
