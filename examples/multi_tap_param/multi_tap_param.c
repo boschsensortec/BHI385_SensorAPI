@@ -31,7 +31,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  *
  * @file    multi_tap_param.c
- * @brief   Multi tap example for the BHY
+ * @brief   Multi tap example for the BHI385
  *
  */
 
@@ -49,12 +49,7 @@
 
 #include "bhi385/Bosch_Shuttle3_BHI385_bsxsam_lite.fw.h"
 
-#define WORK_BUFFER_SIZE    2048
-
-#define NUM_TAP_LOOP_COUNT  (5U)
-
-/*! Sensor ID for Multi tap sensor */
-#define CUSTOM_SENSOR_ID    BHI385_SENSOR_ID_MULTI_TAP
+#define NUM_TAP_LOOP_COUNT  UINT8_C(5)
 
 /*!
  * @brief Output of the multi tap data is parsed for printing
@@ -66,23 +61,18 @@
  */
 static void parse_multitap(const struct bhi385_fifo_parse_data_info *callback_info, void *callback_ref);
 
-static void print_api_error(int8_t rslt, struct bhi385_dev *dev);
-static void upload_firmware(uint8_t boot_stat, struct bhi385_dev *dev);
-
-enum bhi385_intf intf;
-
 int main(void)
 {
-    uint8_t chip_id = 0;
+    enum bhi385_intf intf;
     uint16_t version = 0;
     int8_t rslt;
     uint8_t loop_cnt = 0U;
     struct bhi385_dev bhy;
-    uint8_t hintr_ctrl, hif_ctrl, boot_status;
+    uint8_t boot_status = 0;
 
     struct bhi385_virtual_sensor_conf_param_conf sensor_conf = { 0 };
 
-    uint8_t work_buffer[WORK_BUFFER_SIZE];
+    uint8_t work_buffer[WORK_BUFFER_SIZE] = { 0 };
 
     bhi385_event_data_multi_tap buffer[8] = { BHI385_NO_TAP };
     bhi385_event_data_multi_tap multitap_setting = BHI385_TRIPLE_DOUBLE_SINGLE_TAP;
@@ -96,63 +86,9 @@ int main(void)
 
     setup_interfaces(true, intf); /* Perform a power on reset */
 
-#ifdef BHI385_USE_I2C
-    rslt = bhi385_init(BHI385_I2C_INTERFACE,
-                       bhi385_i2c_read,
-                       bhi385_i2c_write,
-                       bhi385_delay_us,
-                       BHI385_RD_WR_LEN,
-                       NULL,
-                       &bhy);
-#else
-    rslt = bhi385_init(BHI385_SPI_INTERFACE,
-                       bhi385_spi_read,
-                       bhi385_spi_write,
-                       bhi385_delay_us,
-                       BHI385_RD_WR_LEN,
-                       NULL,
-                       &bhy);
-#endif
-    print_api_error(rslt, &bhy);
+    init_sensor(&bhy, intf);
 
-    rslt = bhi385_soft_reset(&bhy);
-    print_api_error(rslt, &bhy);
-
-    rslt = bhi385_get_chip_id(&chip_id, &bhy);
-    print_api_error(rslt, &bhy);
-
-    /* Check for a valid Chip ID */
-    if (chip_id == BHI385_CHIP_ID)
-    {
-        printf("Chip ID read 0x%X\r\n", chip_id);
-    }
-    else
-    {
-        printf("Device not found. Chip ID read 0x%X\r\n", chip_id);
-    }
-
-    /* Check the interrupt pin and FIFO configurations. Disable status and debug */
-    hintr_ctrl = BHI385_ICTL_DISABLE_STATUS_FIFO | BHI385_ICTL_DISABLE_DEBUG;
-
-    rslt = bhi385_set_host_interrupt_ctrl(hintr_ctrl, &bhy);
-    print_api_error(rslt, &bhy);
-    rslt = bhi385_get_host_interrupt_ctrl(&hintr_ctrl, &bhy);
-    print_api_error(rslt, &bhy);
-
-    printf("Host interrupt control\r\n");
-    printf("    Wake up FIFO %s.\r\n", (hintr_ctrl & BHI385_ICTL_DISABLE_FIFO_W) ? "disabled" : "enabled");
-    printf("    Non wake up FIFO %s.\r\n", (hintr_ctrl & BHI385_ICTL_DISABLE_FIFO_NW) ? "disabled" : "enabled");
-    printf("    Status FIFO %s.\r\n", (hintr_ctrl & BHI385_ICTL_DISABLE_STATUS_FIFO) ? "disabled" : "enabled");
-    printf("    Debugging %s.\r\n", (hintr_ctrl & BHI385_ICTL_DISABLE_DEBUG) ? "disabled" : "enabled");
-    printf("    Fault %s.\r\n", (hintr_ctrl & BHI385_ICTL_DISABLE_FAULT) ? "disabled" : "enabled");
-    printf("    Interrupt is %s.\r\n", (hintr_ctrl & BHI385_ICTL_ACTIVE_LOW) ? "active low" : "active high");
-    printf("    Interrupt is %s triggered.\r\n", (hintr_ctrl & BHI385_ICTL_EDGE) ? "pulse" : "level");
-    printf("    Interrupt pin drive is %s.\r\n", (hintr_ctrl & BHI385_ICTL_OPEN_DRAIN) ? "open drain" : "push-pull");
-
-    /* Configure the host interface */
-    hif_ctrl = 0;
-    rslt = bhi385_set_host_intf_ctrl(hif_ctrl, &bhy);
-    print_api_error(rslt, &bhy);
+    setup_host_int_ctrl(&bhy);
 
     /* Check if the sensor is ready to load firmware */
     rslt = bhi385_get_boot_status(&boot_status, &bhy);
@@ -160,7 +96,7 @@ int main(void)
 
     if (boot_status & BHI385_BST_HOST_INTERFACE_READY)
     {
-        upload_firmware(boot_status, &bhy);
+        upload_firmware(bhi385_firmware_image, sizeof(bhi385_firmware_image), &bhy);
 
         rslt = bhi385_get_kernel_version(&version, &bhy);
         print_api_error(rslt, &bhy);
@@ -170,7 +106,7 @@ int main(void)
         }
 
         /*! Registering the callback functions */
-        rslt = bhi385_register_fifo_parse_callback(CUSTOM_SENSOR_ID, parse_multitap, NULL, &bhy);
+        rslt = bhi385_register_fifo_parse_callback(BHI385_SENSOR_ID_MULTI_TAP, parse_multitap, NULL, &bhy);
         print_api_error(rslt, &bhy);
         rslt = bhi385_get_and_process_fifo(work_buffer, WORK_BUFFER_SIZE, &bhy);
         print_api_error(rslt, &bhy);
@@ -228,18 +164,15 @@ int main(void)
     /*! Setting the Sampling frequency and latency time */
     sensor_conf.sample_rate = 100.0; /*! Read out data measured at 100Hz */
     sensor_conf.latency = 0; /*! Report immediately */
-    rslt = bhi385_virtual_sensor_conf_param_set_cfg(CUSTOM_SENSOR_ID, &sensor_conf, &bhy);
+    rslt = bhi385_virtual_sensor_conf_param_set_cfg(BHI385_SENSOR_ID_MULTI_TAP, &sensor_conf, &bhy);
     print_api_error(rslt, &bhy);
 
-    rslt = bhi385_virtual_sensor_conf_param_get_cfg(CUSTOM_SENSOR_ID, &sensor_conf, &bhy);
+    rslt = bhi385_virtual_sensor_conf_param_get_cfg(BHI385_SENSOR_ID_MULTI_TAP, &sensor_conf, &bhy);
 
-    /*lint -e10 Error 10: Lint does not understand PRIxxx */
-    printf("Multi tap sensor ID=%d, rate=%.2fHz,latency=%" PRIu32 "\r\n",
-           CUSTOM_SENSOR_ID,
+    printf("Multi tap sensor ID=%d, rate=%.2fHz, latency=%u\r\n",
+           BHI385_SENSOR_ID_MULTI_TAP,
            sensor_conf.sample_rate,
            sensor_conf.latency);
-
-    /*lint +e10 */
 
     /*! Data from the FIFO is read and the relevant callbacks if registered are called */
     while ((rslt == BHI385_OK) && (loop_cnt < NUM_TAP_LOOP_COUNT))
@@ -272,6 +205,7 @@ static void parse_multitap(const struct bhi385_fifo_parse_data_info *callback_in
     (void)callback_ref;
     uint32_t s, ns;
     uint64_t tns;
+    int8_t rslt = 0;
 
     bhi385_event_data_multi_tap multitap_data = BHI385_NO_TAP;
 
@@ -284,60 +218,14 @@ static void parse_multitap(const struct bhi385_fifo_parse_data_info *callback_in
 
     time_to_s_ns(*callback_info->time_stamp, &s, &ns, &tns);
 
-    bhi385_event_data_multi_tap_parsing(callback_info->data_ptr, (uint8_t *)&multitap_data);
+    rslt = bhi385_event_data_multi_tap_parsing(callback_info->data_ptr, (uint8_t *)&multitap_data);
+    print_api_error(rslt, NULL);
 
-    /*lint -e10 Error 10: Lint does not understand PRIxxx */
-    printf("SID: %u; T: %" PRIu32 ".%09" PRIu32 "; %s; \r\n",
-           callback_info->sensor_id,
-           s,
-           ns,
+#ifndef PC
+    printf("SID: %lu; T: %lu .%09lu; %s; \r\n", callback_info->sensor_id, s, ns,
            bhi385_event_data_multi_tap_string_out[multitap_data]);
-
-    /*lint +e10 */
-}
-
-static void print_api_error(int8_t rslt, struct bhi385_dev *dev)
-{
-    if (rslt != BHI385_OK)
-    {
-        printf("%s\r\n", get_api_error(rslt));
-        if ((rslt == BHI385_E_IO) && (dev != NULL))
-        {
-            printf("%s\r\n", get_coines_error(dev->hif.intf_rslt));
-            dev->hif.intf_rslt = BHI385_INTF_RET_SUCCESS;
-        }
-
-        exit(0);
-    }
-}
-
-static void upload_firmware(uint8_t boot_stat, struct bhi385_dev *dev)
-{
-    uint8_t sensor_error;
-    int8_t temp_rslt;
-    int8_t rslt = BHI385_OK;
-
-    printf("Loading firmware into RAM.\r\n");
-    rslt = bhi385_upload_firmware_to_ram(bhi385_firmware_image, sizeof(bhi385_firmware_image), dev);
-
-    temp_rslt = bhi385_get_error_value(&sensor_error, dev);
-    if (sensor_error)
-    {
-        printf("%s\r\n", get_sensor_error_text(sensor_error));
-    }
-
-    print_api_error(rslt, dev);
-    print_api_error(temp_rslt, dev);
-
-    printf("Booting from RAM.\r\n");
-    rslt = bhi385_boot_from_ram(dev);
-
-    temp_rslt = bhi385_get_error_value(&sensor_error, dev);
-    if (sensor_error)
-    {
-        printf("%s\r\n", get_sensor_error_text(sensor_error));
-    }
-
-    print_api_error(rslt, dev);
-    print_api_error(temp_rslt, dev);
+#else
+    printf("SID: %u; T: %u .%09u; %s; \r\n", callback_info->sensor_id, s, ns,
+           bhi385_event_data_multi_tap_string_out[multitap_data]);
+#endif
 }

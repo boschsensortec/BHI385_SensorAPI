@@ -51,19 +51,7 @@
 #define BST_APP20_CDC_USB_PID  (0xAB2C)
 #define ARDUINO_NICLA_USB_PID  (0x0060)
 
-#ifndef PC
-static uint8_t verb_buff[256] = { 0 };
-#endif
-
 void verbose_write(uint8_t *buffer, uint16_t length);
-
-#ifndef PC
-#define PRINT(format, ...)                             \
-    sprintf((char *)verb_buff, format,##__VA_ARGS__); \
-    verbose_write(verb_buff, strlen((char *)verb_buff));
-#else
-#define PRINT(format, ...)  printf(format,##__VA_ARGS__)
-#endif
 
 #ifdef MCU_APP20
 static enum coines_multi_io_pin cs_pin = BHY385_APP20_CS_PIN;
@@ -86,7 +74,8 @@ bool get_interrupt_status(void)
     coines_rslt = coines_get_pin_config(int_pin, &pin_direction, &pin_value);
     if (coines_rslt != COINES_SUCCESS)
     {
-        PRINT("Error getting interrupt pin status\r\n.%s\r\n", get_coines_error(coines_rslt));
+        char *error_text = get_coines_error(coines_rslt);
+        printf("Error getting interrupt pin status %s\r\n", error_text);
     }
 
     return pin_value == COINES_PIN_VALUE_HIGH;
@@ -212,19 +201,21 @@ void setup_interfaces(bool reset_power, enum bhi385_intf intf)
     enum coines_pin_direction pin_direction;
     enum coines_pin_value pin_value;
     struct coines_board_info board_info;
+    char *error_text;
 
 #ifndef PC
     struct coines_ble_config ble_config;
     ble_config.name = NULL;
     ble_config.tx_power = COINES_TX_POWER_8_DBM;
-    coines_ble_config(&ble_config);
+    coines_rslt = coines_ble_config(&ble_config);
     coines_rslt = coines_open_comm_intf(COINES_COMM_INTF_BLE, NULL);
 #else
     coines_rslt = coines_open_comm_intf(COINES_COMM_INTF_USB, NULL);
 #endif
     if (coines_rslt)
     {
-        PRINT("%s\n", get_coines_error(coines_rslt));
+        error_text = get_coines_error(coines_rslt);
+        printf("%s\n", error_text);
     }
 
     coines_rslt = coines_get_board_info(&board_info);
@@ -239,7 +230,8 @@ void setup_interfaces(bool reset_power, enum bhi385_intf intf)
     }
     else
     {
-        PRINT("%s\r\n", get_coines_error(coines_rslt));
+        error_text = get_coines_error(coines_rslt);
+        printf("%s\n", error_text);
     }
 
     if (reset_power)
@@ -247,7 +239,8 @@ void setup_interfaces(bool reset_power, enum bhi385_intf intf)
         coines_rslt = coines_set_shuttleboard_vdd_vddio_config(0, 0);
         if (coines_rslt != COINES_SUCCESS)
         {
-            PRINT("%s\r\n", get_coines_error(coines_rslt));
+            error_text = get_coines_error(coines_rslt);
+            printf("%s\n", error_text);
         }
 
         pin_direction = COINES_PIN_DIRECTION_OUT;
@@ -255,7 +248,8 @@ void setup_interfaces(bool reset_power, enum bhi385_intf intf)
         coines_rslt = coines_set_pin_config(reset_pin, pin_direction, pin_value);
         if (coines_rslt != COINES_SUCCESS)
         {
-            PRINT("%s\r\n", get_coines_error(coines_rslt));
+            error_text = get_coines_error(coines_rslt);
+            printf("%s\n", error_text);
         }
 
         coines_delay_msec(10);
@@ -263,27 +257,30 @@ void setup_interfaces(bool reset_power, enum bhi385_intf intf)
 
     if (intf == BHI385_SPI_INTERFACE)
     {
-        PRINT("Host Interface : SPI\r\n");
+        printf("Host Interface : SPI\r\n");
         coines_rslt = coines_config_spi_bus(COINES_SPI_BUS_0, COINES_SPI_SPEED_1_MHZ, COINES_SPI_MODE0);
         if (coines_rslt != COINES_SUCCESS)
         {
-            PRINT("Error configuring to SPI.\r\n%s\r\n", get_coines_error(coines_rslt));
+            error_text = get_coines_error(coines_rslt);
+            printf("Error configuring to SPI %s\r\n", error_text);
         }
     }
     else
     {
-        PRINT("Host Interface : I2C\r\n");
+        printf("Host Interface : I2C\r\n");
         coines_rslt = coines_config_i2c_bus(COINES_I2C_BUS_0, COINES_I2C_FAST_MODE);
         if (coines_rslt != COINES_SUCCESS)
         {
-            PRINT("Error configuring to I2C.\r\n%s\r\n", get_coines_error(coines_rslt));
+            error_text = get_coines_error(coines_rslt);
+            printf("Error configuring to I2C %s\r\n", error_text);
         }
     }
 
     coines_rslt = coines_set_shuttleboard_vdd_vddio_config(1800, 1800);
     if (coines_rslt != COINES_SUCCESS)
     {
-        PRINT("Error setting Vdd and Vddio to 1.8V.\r\n%s\r\n", get_coines_error(coines_rslt));
+        error_text = get_coines_error(coines_rslt);
+        printf("Error setting Vdd and Vddio to 1.8V %s\r\n", error_text);
     }
 
     pin_direction = COINES_PIN_DIRECTION_OUT;
@@ -291,7 +288,8 @@ void setup_interfaces(bool reset_power, enum bhi385_intf intf)
     coines_rslt = coines_set_pin_config(reset_pin, pin_direction, pin_value);
     if (coines_rslt != COINES_SUCCESS)
     {
-        PRINT("Error setting the reset pin\r\n.%s\r\n", get_coines_error(coines_rslt));
+        error_text = get_coines_error(coines_rslt);
+        printf("Error setting the reset pin %s\r\n", error_text);
     }
 
     /* Configure as a pull-down. The BHy operates the interrupt pin as an active high, level, push-pull by default */
@@ -300,7 +298,8 @@ void setup_interfaces(bool reset_power, enum bhi385_intf intf)
     coines_rslt = coines_set_pin_config(int_pin, pin_direction, pin_value);
     if (coines_rslt != COINES_SUCCESS)
     {
-        PRINT("Error configuring the interrupt pin\r\n.%s\r\n", get_coines_error(coines_rslt));
+        error_text = get_coines_error(coines_rslt);
+        printf("Error configuring the interrupt pin %s\r\n", error_text);
     }
 
     coines_delay_msec(50);
@@ -312,12 +311,13 @@ void setup_interfaces_with_port(bool reset_power, enum bhi385_intf intf, const c
     enum coines_pin_direction pin_direction;
     enum coines_pin_value pin_value;
     struct coines_board_info board_info;
+    char *error_text;
 
 #ifndef PC
     struct coines_ble_config ble_config;
     ble_config.name = NULL;
     ble_config.tx_power = COINES_TX_POWER_8_DBM;
-    coines_ble_config(&ble_config);
+    coines_rslt = coines_ble_config(&ble_config);
     coines_rslt = coines_open_comm_intf(COINES_COMM_INTF_BLE, NULL);
 #else
     struct coines_serial_com_config scom_config;
@@ -331,7 +331,8 @@ void setup_interfaces_with_port(bool reset_power, enum bhi385_intf intf, const c
 #endif
     if (coines_rslt)
     {
-        PRINT("%s\n", get_coines_error(coines_rslt));
+        error_text = get_coines_error(coines_rslt);
+        printf("%s\n", error_text);
     }
 
     coines_rslt = coines_get_board_info(&board_info);
@@ -357,7 +358,8 @@ void setup_interfaces_with_port(bool reset_power, enum bhi385_intf intf, const c
     }
     else
     {
-        PRINT("%s\r\n", get_coines_error(coines_rslt));
+        error_text = get_coines_error(coines_rslt);
+        printf("%s\r\n", error_text);
     }
 
     if (reset_power)
@@ -365,7 +367,8 @@ void setup_interfaces_with_port(bool reset_power, enum bhi385_intf intf, const c
         coines_rslt = coines_set_shuttleboard_vdd_vddio_config(0, 0);
         if (coines_rslt != COINES_SUCCESS)
         {
-            PRINT("%s\r\n", get_coines_error(coines_rslt));
+            error_text = get_coines_error(coines_rslt);
+            printf("%s\r\n", error_text);
         }
 
         pin_direction = COINES_PIN_DIRECTION_OUT;
@@ -373,7 +376,8 @@ void setup_interfaces_with_port(bool reset_power, enum bhi385_intf intf, const c
         coines_rslt = coines_set_pin_config(reset_pin, pin_direction, pin_value);
         if (coines_rslt != COINES_SUCCESS)
         {
-            PRINT("%s\r\n", get_coines_error(coines_rslt));
+            error_text = get_coines_error(coines_rslt);
+            printf("%s\r\n", error_text);
         }
 
         coines_delay_msec(10);
@@ -381,27 +385,30 @@ void setup_interfaces_with_port(bool reset_power, enum bhi385_intf intf, const c
 
     if (intf == BHI385_SPI_INTERFACE)
     {
-        PRINT("Host Interface : SPI\r\n");
+        printf("Host Interface : SPI\r\n");
         coines_rslt = coines_config_spi_bus(COINES_SPI_BUS_0, COINES_SPI_SPEED_1_MHZ, COINES_SPI_MODE0);
         if (coines_rslt != COINES_SUCCESS)
         {
-            PRINT("Error configuring to SPI.\r\n%s\r\n", get_coines_error(coines_rslt));
+            error_text = get_coines_error(coines_rslt);
+            printf("Error configuring to SPI %s\r\n", error_text);
         }
     }
     else
     {
-        PRINT("Host Interface : I2C\r\n");
+        printf("Host Interface : I2C\r\n");
         coines_rslt = coines_config_i2c_bus(COINES_I2C_BUS_0, COINES_I2C_FAST_MODE);
         if (coines_rslt != COINES_SUCCESS)
         {
-            PRINT("Error configuring to I2C.\r\n%s\r\n", get_coines_error(coines_rslt));
+            error_text = get_coines_error(coines_rslt);
+            printf("Error configuring to I2C %s\r\n", error_text);
         }
     }
 
     coines_rslt = coines_set_shuttleboard_vdd_vddio_config(1800, 1800);
     if (coines_rslt != COINES_SUCCESS)
     {
-        PRINT("Error setting Vdd and Vddio to 1.8V.\r\n%s\r\n", get_coines_error(coines_rslt));
+        error_text = get_coines_error(coines_rslt);
+        printf("Error setting Vdd and Vddio to 1.8V.\r\n%s\r\n", error_text);
     }
 
     pin_direction = COINES_PIN_DIRECTION_OUT;
@@ -409,7 +416,8 @@ void setup_interfaces_with_port(bool reset_power, enum bhi385_intf intf, const c
     coines_rslt = coines_set_pin_config(reset_pin, pin_direction, pin_value);
     if (coines_rslt != COINES_SUCCESS)
     {
-        PRINT("Error setting the reset pin\r\n.%s\r\n", get_coines_error(coines_rslt));
+        error_text = get_coines_error(coines_rslt);
+        printf("Error setting the reset pin %s\r\n", error_text);
     }
 
     /* Configure as a pull-down. The BHy operates the interrupt pin as an active high, level, push-pull by default */
@@ -418,7 +426,8 @@ void setup_interfaces_with_port(bool reset_power, enum bhi385_intf intf, const c
     coines_rslt = coines_set_pin_config(int_pin, pin_direction, pin_value);
     if (coines_rslt != COINES_SUCCESS)
     {
-        PRINT("Error configuring the interrupt pin\r\n.%s\r\n", get_coines_error(coines_rslt));
+        error_text = get_coines_error(coines_rslt);
+        printf("Error configuring the interrupt pin %s\r\n", error_text);
     }
 
     coines_delay_msec(50);
@@ -428,18 +437,19 @@ void close_interfaces(enum bhi385_intf intf)
 {
     if (intf == BHI385_I2C_INTERFACE)
     {
-        coines_deconfig_i2c_bus(COINES_I2C_BUS_0);
+        (void)coines_deconfig_i2c_bus(COINES_I2C_BUS_0);
     }
     else
     {
-        coines_deconfig_spi_bus(COINES_SPI_BUS_0);
+        (void)coines_deconfig_spi_bus(COINES_SPI_BUS_0);
     }
 
-    coines_close_comm_intf(COINES_COMM_INTF_USB, NULL);
+    (void)coines_close_comm_intf(COINES_COMM_INTF_USB, NULL);
 
-    fflush(stdout);
+    (void)fflush(stdout);
 
-    coines_set_shuttleboard_vdd_vddio_config(0, 0);
+    (void)coines_set_shuttleboard_vdd_vddio_config(0, 0);
+
     coines_delay_msec(100);
 
     /* Coines interface reset */
@@ -483,7 +493,7 @@ void bhi385_delay_us(uint32_t us, void *private_data)
 
 char *get_sensor_error_text(uint8_t sensor_error)
 {
-    char *ret;
+    char *ret = "Error code not recognized";
 
     switch (sensor_error)
     {
@@ -1110,6 +1120,12 @@ char *get_sensor_name(uint8_t sensor_id)
         case BHI385_SENSOR_ID_NDOF_HEAD_ORI_E:
             ret = "NDOF Head Orientation Euler";
             break;
+        case BHI385_SENSOR_ID_PRESSURE:
+            ret = "BMP Pressure";
+            break;
+        case BHI385_SENSOR_ID_PRESSURE_WU:
+            ret = "BMP Pressure Wakeup";
+            break;
         default:
             if ((sensor_id >= BHI385_SENSOR_ID_CUSTOM_START) && (sensor_id <= BHI385_SENSOR_ID_CUSTOM_END))
             {
@@ -1277,7 +1293,7 @@ char *get_sensor_parse_format(uint8_t sensor_id)
             ret = "u32";
             break;
         case BHI385_SENSOR_ID_KLIO:
-            ret = "u8,u8,u8,u8,u8,u8,f,f";
+            ret = "u8,s8,u8,u8,u8,u8,f,f";
             break;
         case BHI385_SENSOR_ID_SI_ACCEL:
         case BHI385_SENSOR_ID_SI_GYROS:
@@ -1521,3 +1537,108 @@ void default_verbose_write(uint8_t *buffer, uint16_t length)
 void verbose_write(uint8_t *buffer, uint16_t length) __attribute__ ((weak, alias("default_verbose_write")));
 
 #endif
+
+void print_api_error(int8_t rslt, struct bhi385_dev *dev)
+{
+    if (rslt != BHI385_OK)
+    {
+        printf("%s\r\n", get_api_error(rslt));
+        if ((rslt == BHI385_E_IO) && (dev != NULL))
+        {
+            printf("%s\r\n", get_coines_error(dev->hif.intf_rslt));
+            dev->hif.intf_rslt = BHI385_INTF_RET_SUCCESS;
+        }
+    }
+}
+
+void upload_firmware(const uint8_t fw[], uint32_t length, struct bhi385_dev *dev)
+{
+    uint8_t sensor_error = 0;
+    int8_t temp_rslt;
+    int8_t rslt = BHI385_OK;
+
+    printf("Loading firmware into RAM.\r\n");
+    rslt = bhi385_upload_firmware_to_ram(fw, length, dev);
+
+    temp_rslt = bhi385_get_error_value(&sensor_error, dev);
+    if (sensor_error)
+    {
+        printf("%s\r\n", get_sensor_error_text(sensor_error));
+    }
+
+    print_api_error(rslt, dev);
+    print_api_error(temp_rslt, dev);
+
+    printf("Booting from RAM.\r\n");
+    rslt = bhi385_boot_from_ram(dev);
+
+    temp_rslt = bhi385_get_error_value(&sensor_error, dev);
+    if (sensor_error)
+    {
+        printf("%s\r\n", get_sensor_error_text(sensor_error));
+    }
+
+    print_api_error(rslt, dev);
+    print_api_error(temp_rslt, dev);
+}
+
+void setup_host_int_ctrl(struct bhi385_dev *dev)
+{
+    int8_t rslt;
+    uint8_t hintr_ctrl, hif_ctrl;
+
+    /* Check the interrupt pin and FIFO configurations. Disable status and debug */
+    hintr_ctrl = BHI385_ICTL_DISABLE_STATUS_FIFO | BHI385_ICTL_DISABLE_DEBUG;
+
+    rslt = bhi385_set_host_interrupt_ctrl(hintr_ctrl, dev);
+    print_api_error(rslt, dev);
+    rslt = bhi385_get_host_interrupt_ctrl(&hintr_ctrl, dev);
+    print_api_error(rslt, dev);
+
+    printf("Host interrupt control\r\n");
+    printf("    Wake up FIFO %s.\r\n", (hintr_ctrl & BHI385_ICTL_DISABLE_FIFO_W) ? "disabled" : "enabled");
+    printf("    Non wake up FIFO %s.\r\n", (hintr_ctrl & BHI385_ICTL_DISABLE_FIFO_NW) ? "disabled" : "enabled");
+    printf("    Status FIFO %s.\r\n", (hintr_ctrl & BHI385_ICTL_DISABLE_STATUS_FIFO) ? "disabled" : "enabled");
+    printf("    Debugging %s.\r\n", (hintr_ctrl & BHI385_ICTL_DISABLE_DEBUG) ? "disabled" : "enabled");
+    printf("    Fault %s.\r\n", (hintr_ctrl & BHI385_ICTL_DISABLE_FAULT) ? "disabled" : "enabled");
+    printf("    Interrupt is %s.\r\n", (hintr_ctrl & BHI385_ICTL_ACTIVE_LOW) ? "active low" : "active high");
+    printf("    Interrupt is %s triggered.\r\n", (hintr_ctrl & BHI385_ICTL_EDGE) ? "pulse" : "level");
+    printf("    Interrupt pin drive is %s.\r\n", (hintr_ctrl & BHI385_ICTL_OPEN_DRAIN) ? "open drain" : "push-pull");
+
+    /* Configure the host interface */
+    hif_ctrl = 0;
+    rslt = bhi385_set_host_intf_ctrl(hif_ctrl, dev);
+    print_api_error(rslt, dev);
+}
+
+void init_sensor(struct bhi385_dev *dev, enum bhi385_intf intf)
+{
+    uint8_t chip_id = 0;
+    int8_t rslt;
+
+#ifdef BHI385_USE_I2C
+    rslt = bhi385_init(intf, bhi385_i2c_read, bhi385_i2c_write, bhi385_delay_us, BHI385_RD_WR_LEN, NULL, dev);
+#else
+    rslt = bhi385_init(intf, bhi385_spi_read, bhi385_spi_write, bhi385_delay_us, BHI385_RD_WR_LEN, NULL, dev);
+#endif
+
+    print_api_error(rslt, dev);
+
+    rslt = bhi385_soft_reset(dev);
+    print_api_error(rslt, dev);
+
+    rslt = bhi385_get_chip_id(&chip_id, dev);
+    print_api_error(rslt, dev);
+
+    /* Check for a valid Chip ID */
+    if (chip_id == BHI385_CHIP_ID)
+    {
+        printf("Chip ID read 0x%X\r\n", chip_id);
+    }
+    else
+    {
+        printf("Device not found. Chip ID read 0x%X\r\n", chip_id);
+
+        return;
+    }
+}

@@ -45,19 +45,16 @@
 
 #include "bhi385/Bosch_Shuttle3_BHI385_bsxsam_lite.fw.h"
 
-static void print_api_error(int8_t rslt, struct bhi385_dev *dev);
-static int8_t upload_firmware(struct bhi385_dev *dev);
-
-enum bhi385_intf intf;
+static int8_t bhi385_upload_firmware(struct bhi385_dev *dev);
 
 int main(void)
 {
-    uint8_t chip_id = 0;
+    enum bhi385_intf intf;
     uint16_t version = 0;
     int8_t rslt;
     struct bhi385_dev bhy;
 
-    uint8_t hintr_ctrl, hif_ctrl, boot_status;
+    uint8_t hintr_ctrl, hif_ctrl, boot_status = 0;
 
 #ifdef BHI385_USE_I2C
     intf = BHI385_I2C_INTERFACE;
@@ -67,40 +64,7 @@ int main(void)
 
     setup_interfaces(true, intf); /* Perform a power on reset */
 
-#ifdef BHI385_USE_I2C
-    rslt = bhi385_init(BHI385_I2C_INTERFACE,
-                       bhi385_i2c_read,
-                       bhi385_i2c_write,
-                       bhi385_delay_us,
-                       BHI385_RD_WR_LEN,
-                       NULL,
-                       &bhy);
-#else
-    rslt = bhi385_init(BHI385_SPI_INTERFACE,
-                       bhi385_spi_read,
-                       bhi385_spi_write,
-                       bhi385_delay_us,
-                       BHI385_RD_WR_LEN,
-                       NULL,
-                       &bhy);
-#endif
-    print_api_error(rslt, &bhy);
-
-    rslt = bhi385_soft_reset(&bhy);
-    print_api_error(rslt, &bhy);
-
-    rslt = bhi385_get_chip_id(&chip_id, &bhy);
-    print_api_error(rslt, &bhy);
-
-    /* Check for a valid Chip ID */
-    if (chip_id == BHI385_CHIP_ID)
-    {
-        printf("Chip ID read 0x%X\r\n", chip_id);
-    }
-    else
-    {
-        printf("Device not found. Chip ID read 0x%X\r\n", chip_id);
-    }
+    init_sensor(&bhy, intf);
 
     /* Check the interrupt pin and FIFO configurations. Disable status and debug */
     hintr_ctrl = BHI385_ICTL_DISABLE_STATUS_FIFO | BHI385_ICTL_DISABLE_DEBUG;
@@ -123,7 +87,7 @@ int main(void)
         int8_t temp_rslt;
         printf("Loading firmware.\r\n");
 
-        rslt = upload_firmware(&bhy);
+        rslt = bhi385_upload_firmware(&bhy);
         temp_rslt = bhi385_get_error_value(&sensor_error, &bhy);
         if (sensor_error)
         {
@@ -166,22 +130,7 @@ int main(void)
     return rslt;
 }
 
-static void print_api_error(int8_t rslt, struct bhi385_dev *dev)
-{
-    if (rslt != BHI385_OK)
-    {
-        printf("%s\r\n", get_api_error(rslt));
-        if ((rslt == BHI385_E_IO) && (dev != NULL))
-        {
-            printf("%s\r\n", get_coines_error(dev->hif.intf_rslt));
-            dev->hif.intf_rslt = BHI385_INTF_RET_SUCCESS;
-        }
-
-        exit(0);
-    }
-}
-
-static int8_t upload_firmware(struct bhi385_dev *dev)
+static int8_t bhi385_upload_firmware(struct bhi385_dev *dev)
 {
     uint32_t incr = 256; /* Max command packet size */
     uint32_t len = sizeof(bhi385_firmware_image);

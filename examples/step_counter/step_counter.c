@@ -35,6 +35,7 @@
  *
  */
 
+#include <stdio.h>
 #include "bhi385.h"
 #include "bhi385_parse.h"
 #include "common.h"
@@ -43,43 +44,31 @@
 
 #include "bhi385/Bosch_Shuttle3_BHI385_bsxsam_lite_Klio_cyclic.fw.h"
 
-#define WORK_BUFFER_SIZE        2048
-#define STEP_COUNTER_SENSOR_ID  BHI385_SENSOR_ID_STC_LP
+/**
+* @brief Function to parse step counter format
+* @param[in] callback_info : Pointer to callback information
+* @param[in] callback_ref  : Pointer to callback reference
+*/
+void parse_step_counter(const struct bhi385_fifo_parse_data_info *callback_info, void *callback_ref);
 
-/*! @brief Parse meta event.
- *
- *  @param[in] callback_info : Sensor data info.
- *  @param[in] callback_ref  : Parse reference.
- */
-static void parse_meta_event(const struct bhi385_fifo_parse_data_info *callback_info, void *callback_ref);
+/**
+* @brief Function to parse step detector format
+* @param[in] callback_info : Pointer to callback information
+* @param[in] callback_ref  : Pointer to callback reference
+*/
+void parse_step_detector(const struct bhi385_fifo_parse_data_info *callback_info, void *callback_ref);
 
-/*! @brief Prints API error code.
- *
- *  @param[in] rslt      : API Error code.
- *  @param[in] dev       : Device reference.
- */
-static void print_api_error(int8_t rslt, struct bhi385_dev *dev);
-
-/*! @brief Loads firmware image to BHy ram.
- *
- *  @param[in] boot_stat : Boot status.
- *  @param[in] dev       : Device reference.
- */
-static void upload_firmware(uint8_t boot_stat, struct bhi385_dev *dev);
-
-enum bhi385_intf intf;
+#define PARSE_DATA_WINDOW_SIZE  UINT16_C(15000)
 
 int main(void)
 {
-    uint8_t chip_id = 0;
+    enum bhi385_intf intf;
     uint16_t version = 0;
     int8_t rslt;
     struct bhi385_dev bhy;
-    uint8_t work_buffer[WORK_BUFFER_SIZE];
-    uint8_t hintr_ctrl, hif_ctrl, boot_status;
+    uint8_t work_buffer[WORK_BUFFER_SIZE] = { 0 };
+    uint8_t boot_status = 0;
     struct bhi385_virtual_sensor_conf_param_conf sensor_conf = { 0 };
-    uint8_t loop = 0;
-    uint8_t limit = 5;
 
 #ifdef BHI385_USE_I2C
     intf = BHI385_I2C_INTERFACE;
@@ -89,63 +78,9 @@ int main(void)
 
     setup_interfaces(true, intf); /* Perform a power on reset */
 
-#ifdef BHI385_USE_I2C
-    rslt = bhi385_init(BHI385_I2C_INTERFACE,
-                       bhi385_i2c_read,
-                       bhi385_i2c_write,
-                       bhi385_delay_us,
-                       BHI385_RD_WR_LEN,
-                       NULL,
-                       &bhy);
-#else
-    rslt = bhi385_init(BHI385_SPI_INTERFACE,
-                       bhi385_spi_read,
-                       bhi385_spi_write,
-                       bhi385_delay_us,
-                       BHI385_RD_WR_LEN,
-                       NULL,
-                       &bhy);
-#endif
-    print_api_error(rslt, &bhy);
+    init_sensor(&bhy, intf);
 
-    rslt = bhi385_soft_reset(&bhy);
-    print_api_error(rslt, &bhy);
-
-    rslt = bhi385_get_chip_id(&chip_id, &bhy);
-    print_api_error(rslt, &bhy);
-
-    /* Check for a valid Chip ID */
-    if (chip_id == BHI385_CHIP_ID)
-    {
-        printf("Chip ID read 0x%X\r\n", chip_id);
-    }
-    else
-    {
-        printf("Device not found. Chip ID read 0x%X\r\n", chip_id);
-    }
-
-    /* Check the interrupt pin and FIFO configurations. Disable status and debug */
-    hintr_ctrl = BHI385_ICTL_DISABLE_STATUS_FIFO | BHI385_ICTL_DISABLE_DEBUG;
-
-    rslt = bhi385_set_host_interrupt_ctrl(hintr_ctrl, &bhy);
-    print_api_error(rslt, &bhy);
-    rslt = bhi385_get_host_interrupt_ctrl(&hintr_ctrl, &bhy);
-    print_api_error(rslt, &bhy);
-
-    printf("Host interrupt control\r\n");
-    printf("    Wake up FIFO %s.\r\n", (hintr_ctrl & BHI385_ICTL_DISABLE_FIFO_W) ? "disabled" : "enabled");
-    printf("    Non wake up FIFO %s.\r\n", (hintr_ctrl & BHI385_ICTL_DISABLE_FIFO_NW) ? "disabled" : "enabled");
-    printf("    Status FIFO %s.\r\n", (hintr_ctrl & BHI385_ICTL_DISABLE_STATUS_FIFO) ? "disabled" : "enabled");
-    printf("    Debugging %s.\r\n", (hintr_ctrl & BHI385_ICTL_DISABLE_DEBUG) ? "disabled" : "enabled");
-    printf("    Fault %s.\r\n", (hintr_ctrl & BHI385_ICTL_DISABLE_FAULT) ? "disabled" : "enabled");
-    printf("    Interrupt is %s.\r\n", (hintr_ctrl & BHI385_ICTL_ACTIVE_LOW) ? "active low" : "active high");
-    printf("    Interrupt is %s triggered.\r\n", (hintr_ctrl & BHI385_ICTL_EDGE) ? "pulse" : "level");
-    printf("    Interrupt pin drive is %s.\r\n", (hintr_ctrl & BHI385_ICTL_OPEN_DRAIN) ? "open drain" : "push-pull");
-
-    /* Configure the host interface */
-    hif_ctrl = 0;
-    rslt = bhi385_set_host_intf_ctrl(hif_ctrl, &bhy);
-    print_api_error(rslt, &bhy);
+    setup_host_int_ctrl(&bhy);
 
     /* Check if the sensor is ready to load firmware */
     rslt = bhi385_get_boot_status(&boot_status, &bhy);
@@ -153,7 +88,7 @@ int main(void)
 
     if (boot_status & BHI385_BST_HOST_INTERFACE_READY)
     {
-        upload_firmware(boot_status, &bhy);
+        upload_firmware(bhi385_firmware_image, sizeof(bhi385_firmware_image), &bhy);
 
         rslt = bhi385_get_kernel_version(&version, &bhy);
         print_api_error(rslt, &bhy);
@@ -162,11 +97,14 @@ int main(void)
             printf("Boot successful. Kernel version %u.\r\n", version);
         }
 
-        rslt = bhi385_register_fifo_parse_callback(BHI385_SYS_ID_META_EVENT, parse_meta_event, NULL, &bhy);
+        rslt = bhi385_register_fifo_parse_callback(BHI385_SYS_ID_META_EVENT, bhi385_parse_meta_event, NULL, &bhy);
         print_api_error(rslt, &bhy);
-        rslt = bhi385_register_fifo_parse_callback(BHI385_SYS_ID_META_EVENT_WU, parse_meta_event, NULL, &bhy);
+        rslt = bhi385_register_fifo_parse_callback(BHI385_SYS_ID_META_EVENT_WU, bhi385_parse_meta_event, NULL, &bhy);
         print_api_error(rslt, &bhy);
-        rslt = bhi385_register_fifo_parse_callback(STEP_COUNTER_SENSOR_ID, bhi385_parse_step_counter_data, NULL, &bhy);
+        rslt = bhi385_register_fifo_parse_callback(BHI385_SENSOR_ID_STC_LP, parse_step_counter, NULL, &bhy);
+        print_api_error(rslt, &bhy);
+
+        rslt = bhi385_register_fifo_parse_callback(BHI385_SENSOR_ID_STD_LP, parse_step_detector, NULL, &bhy);
         print_api_error(rslt, &bhy);
 
         rslt = bhi385_get_and_process_fifo(work_buffer, WORK_BUFFER_SIZE, &bhy);
@@ -185,150 +123,89 @@ int main(void)
     rslt = bhi385_update_virtual_sensor_list(&bhy);
     print_api_error(rslt, &bhy);
 
-    /* Read out data measured at 100Hz */
-    sensor_conf.sample_rate = 100.0f; /* Read out data measured at 100Hz */
+    /* Enable step counter and step detector virtual sensors */
+    sensor_conf.sample_rate = 1.0f; /* Read out data measured at 1Hz */
     sensor_conf.latency = 0; /* Report immediately */
-    rslt = bhi385_virtual_sensor_conf_param_set_cfg(STEP_COUNTER_SENSOR_ID, &sensor_conf, &bhy);
-    print_api_error(rslt, &bhy);
-    printf("Enable %s at %.2fHz.\r\n", get_sensor_name(STEP_COUNTER_SENSOR_ID), sensor_conf.sample_rate);
 
-    while (rslt == BHI385_OK && loop < limit)
+    rslt = bhi385_virtual_sensor_conf_param_set_cfg(BHI385_SENSOR_ID_STC_LP, &sensor_conf, &bhy);
+    print_api_error(rslt, &bhy);
+    printf("Enable %s at %.2fHz.\r\n", get_sensor_name(BHI385_SENSOR_ID_STC_LP), sensor_conf.sample_rate);
+
+    rslt = bhi385_virtual_sensor_conf_param_set_cfg(BHI385_SENSOR_ID_STD_LP, &sensor_conf, &bhy);
+    print_api_error(rslt, &bhy);
+    printf("Enable %s at %.2fHz.\r\n", get_sensor_name(BHI385_SENSOR_ID_STD_LP), sensor_conf.sample_rate);
+
+    uint32_t curr_ts;
+    uint32_t start_ts = coines_get_millis();
+    do
     {
+        curr_ts = coines_get_millis();
+
         if (get_interrupt_status())
         {
             /* Data from the FIFO is read and the relevant callbacks if registered are called */
             rslt = bhi385_get_and_process_fifo(work_buffer, WORK_BUFFER_SIZE, &bhy);
-            loop++;
             print_api_error(rslt, &bhy);
         }
-    }
+    } while (rslt == BHI385_OK && (curr_ts - start_ts) < PARSE_DATA_WINDOW_SIZE);
 
     close_interfaces(intf);
 
     return rslt;
 }
 
-static void parse_meta_event(const struct bhi385_fifo_parse_data_info *callback_info, void *callback_ref)
+/**
+* @brief Function to parse 32-bit scalar format
+* @param[in] callback_info : Pointer to callback information
+* @param[in] callback_ref  : Pointer to callback reference
+*/
+void parse_step_counter(const struct bhi385_fifo_parse_data_info *callback_info, void *callback_ref)
 {
-    (void)callback_ref;
-    uint8_t meta_event_type = callback_info->data_ptr[0];
-    uint8_t byte1 = callback_info->data_ptr[1];
-    uint8_t byte2 = callback_info->data_ptr[2];
-    char *event_text;
+    uint32_t data;
+    uint32_t s, ns;
 
-    if (callback_info->sensor_id == BHI385_SYS_ID_META_EVENT)
+    if (!callback_info)
     {
-        event_text = "[META EVENT]";
-    }
-    else if (callback_info->sensor_id == BHI385_SYS_ID_META_EVENT_WU)
-    {
-        event_text = "[META EVENT WAKE UP]";
-    }
-    else
-    {
+        printf("Null reference\r\n");
+
         return;
     }
 
-    switch (meta_event_type)
-    {
-        case BHI385_META_EVENT_FLUSH_COMPLETE:
-            printf("%s Flush complete for sensor id %u\r\n", event_text, byte1);
-            break;
-        case BHI385_META_EVENT_SAMPLE_RATE_CHANGED:
-            printf("%s Sample rate changed for sensor id %u\r\n", event_text, byte1);
-            break;
-        case BHI385_META_EVENT_POWER_MODE_CHANGED:
-            printf("%s Power mode changed for sensor id %u\r\n", event_text, byte1);
-            break;
-        case BHI385_META_EVENT_ALGORITHM_EVENTS:
-            printf("%s Algorithm event\r\n", event_text);
-            break;
-        case BHI385_META_EVENT_SENSOR_STATUS:
-            printf("%s Accuracy for sensor id %u changed to %u\r\n", event_text, byte1, byte2);
-            break;
-        case BHI385_META_EVENT_BSX_DO_STEPS_MAIN:
-            printf("%s BSX event (do steps main)\r\n", event_text);
-            break;
-        case BHI385_META_EVENT_BSX_DO_STEPS_CALIB:
-            printf("%s BSX event (do steps calib)\r\n", event_text);
-            break;
-        case BHI385_META_EVENT_BSX_GET_OUTPUT_SIGNAL:
-            printf("%s BSX event (get output signal)\r\n", event_text);
-            break;
-        case BHI385_META_EVENT_SENSOR_ERROR:
-            printf("%s Sensor id %u reported error 0x%02X\r\n", event_text, byte1, byte2);
-            break;
-        case BHI385_META_EVENT_FIFO_OVERFLOW:
-            printf("%s FIFO overflow\r\n", event_text);
-            break;
-        case BHI385_META_EVENT_DYNAMIC_RANGE_CHANGED:
-            printf("%s Dynamic range changed for sensor id %u\r\n", event_text, byte1);
-            break;
-        case BHI385_META_EVENT_FIFO_WATERMARK:
-            printf("%s FIFO watermark reached\r\n", event_text);
-            break;
-        case BHI385_META_EVENT_INITIALIZED:
-            printf("%s Firmware initialized. Firmware version %u\r\n", event_text, ((uint16_t)byte2 << 8) | byte1);
-            break;
-        case BHI385_META_TRANSFER_CAUSE:
-            printf("%s Transfer cause for sensor id %u\r\n", event_text, byte1);
-            break;
-        case BHI385_META_EVENT_SENSOR_FRAMEWORK:
-            printf("%s Sensor framework event for sensor id %u\r\n", event_text, byte1);
-            break;
-        case BHI385_META_EVENT_RESET:
-            printf("%s Reset event\r\n", event_text);
-            break;
-        case BHI385_META_EVENT_SPACER:
-            break;
-        default:
-            printf("%s Unknown meta event with id: %u\r\n", event_text, meta_event_type);
-            break;
-    }
+    data = BHI385_LE2U32(callback_info->data_ptr);
+
+    uint64_t timestamp = *callback_info->time_stamp; /* Store the last timestamp */
+
+    timestamp = timestamp * 15625; /* Timestamp is now in nanoseconds */
+    s = (uint32_t)(timestamp / UINT64_C(1000000000));
+    ns = (uint32_t)(timestamp - (s * UINT64_C(1000000000)));
+
+#ifndef PC
+    printf("SID: %u; T: %lu .%09lu; %u\r\n", callback_info->sensor_id, s, ns, data);
+#else
+    printf("SID: %u; T: %u .%09u; %u\r\n", callback_info->sensor_id, s, ns, data);
+#endif
 }
 
-static void print_api_error(int8_t rslt, struct bhi385_dev *dev)
+void parse_step_detector(const struct bhi385_fifo_parse_data_info *callback_info, void *callback_ref)
 {
-    if (rslt != BHI385_OK)
+    uint32_t s, ns;
+
+    if (!callback_info)
     {
-        printf("%s\r\n", get_api_error(rslt));
-        if ((rslt == BHI385_E_IO) && (dev != NULL))
-        {
-            printf("%s\r\n", get_coines_error(dev->hif.intf_rslt));
-            dev->hif.intf_rslt = BHI385_INTF_RET_SUCCESS;
-        }
+        printf("Null reference\r\n");
 
-        close_interfaces(intf);
-        exit(0);
-    }
-}
-
-static void upload_firmware(uint8_t boot_stat, struct bhi385_dev *dev)
-{
-    uint8_t sensor_error;
-    int8_t temp_rslt;
-    int8_t rslt = BHI385_OK;
-
-    printf("Loading firmware into RAM.\r\n");
-    rslt = bhi385_upload_firmware_to_ram(bhi385_firmware_image, sizeof(bhi385_firmware_image), dev);
-    temp_rslt = bhi385_get_error_value(&sensor_error, dev);
-    if (sensor_error)
-    {
-        printf("%s\r\n", get_sensor_error_text(sensor_error));
+        return;
     }
 
-    print_api_error(rslt, dev);
-    print_api_error(temp_rslt, dev);
+    uint64_t timestamp = *callback_info->time_stamp; /* Store the last timestamp */
 
-    printf("Booting from RAM.\r\n");
-    rslt = bhi385_boot_from_ram(dev);
+    timestamp = timestamp * 15625; /* Timestamp is now in nanoseconds */
+    s = (uint32_t)(timestamp / UINT64_C(1000000000));
+    ns = (uint32_t)(timestamp - (s * UINT64_C(1000000000)));
 
-    temp_rslt = bhi385_get_error_value(&sensor_error, dev);
-    if (sensor_error)
-    {
-        printf("%s\r\n", get_sensor_error_text(sensor_error));
-    }
-
-    print_api_error(rslt, dev);
-    print_api_error(temp_rslt, dev);
+#ifndef PC
+    printf("SID: %u; T: %lu .%09lu: Step detected\r\n", callback_info->sensor_id, s, ns);
+#else
+    printf("SID: %u; T: %u .%09u: Step detected\r\n", callback_info->sensor_id, s, ns);
+#endif
 }

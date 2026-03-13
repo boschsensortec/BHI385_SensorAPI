@@ -6,7 +6,7 @@ BHI385_INTF ?=
 
 COINES_BACKEND ?= COINES_BRIDGE
 
-API_LOCATION ?= ../..
+API_LOCATION ?= ../../source
 
 FW_LOCATION ?= ../..
 
@@ -22,6 +22,7 @@ $(API_LOCATION)/bhi385_logbin.c \
 $(API_LOCATION)/bhi385_parse.c \
 $(API_LOCATION)/bhi385_event_data.c \
 $(API_LOCATION)/bhi385_virtual_sensor_info_param.c \
+$(API_LOCATION)/bhi385_virtual_sensor_conf_param.c \
 $(API_LOCATION)/bhi385_system_param.c \
 $(API_LOCATION)/bhi385_phy_sensor_ctrl_param.c \
 $(API_LOCATION)/bhi385_klio_param.c
