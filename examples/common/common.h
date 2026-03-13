@@ -39,7 +39,7 @@
 #define _COMMON_H_
 
 #include <stdbool.h>
-
+#include <inttypes.h>
 #include "bhi385.h"
 #include "bhi385_defs.h"
 #include "bhi385_activity_param.h"
@@ -69,6 +69,8 @@
 #define BHI385_RD_WR_LEN        256      /* MCU maximum read write length */
 #endif
 
+#define WORK_BUFFER_SIZE        UINT16_C(2048)
+
 char *get_coines_error(int16_t rslt);
 char *get_api_error(int8_t error_code);
 char *get_sensor_error_text(uint8_t sensor_error);
@@ -80,9 +82,13 @@ char *get_sensor_si_unit(uint8_t sensor_id);
 char *get_sensor_parse_format(uint8_t sensor_id);
 char *get_sensor_axis_names(uint8_t sensor_id);
 char *get_klio_error(bhi385_klio_param_driver_error_state_t error);
+void print_api_error(int8_t rslt, struct bhi385_dev *dev);
+void upload_firmware(const uint8_t fw[], uint32_t length, struct bhi385_dev *dev);
 
 void setup_interfaces(bool reset_power, enum bhi385_intf intf);
 void setup_interfaces_with_port(bool reset_power, enum bhi385_intf intf, const char *com_port);
+void init_sensor(struct bhi385_dev *dev, enum bhi385_intf intf);
+void setup_host_int_ctrl(struct bhi385_dev *dev);
 void close_interfaces(enum bhi385_intf intf);
 int8_t bhi385_spi_read(uint8_t reg_addr, uint8_t *reg_data, uint32_t length, void *intf_ptr);
 int8_t bhi385_spi_write(uint8_t reg_addr, const uint8_t *reg_data, uint32_t length, void *intf_ptr);

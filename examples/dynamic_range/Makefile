@@ -2,11 +2,11 @@ COINES_INSTALL_PATH ?= ../../../..
 
 EXAMPLE_FILE ?= dynamic_range.c
 
-BHI385_INTF ?= 
+BHI385_INTF ?=
 
 COINES_BACKEND ?= COINES_BRIDGE
 
-API_LOCATION ?= ../..
+API_LOCATION ?= ../../source
 
 FW_LOCATION ?= ../..
 

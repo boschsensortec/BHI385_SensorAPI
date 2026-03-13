@@ -45,20 +45,6 @@
 
 #include "bhi385/Bosch_Shuttle3_BHI385_bsxsam_lite.fw.h"
 
-/*! @brief Prints API error code.
- *
- *  @param[in] rslt      : API Error code.
- *  @param[in] dev       : Device reference.
- */
-static void print_api_error(int8_t rslt, struct bhi385_dev *dev);
-
-/*! @brief Loads firmware image to BHy ram.
- *
- *  @param[in] boot_stat : Boot status.
- *  @param[in] dev       : Device reference.
- */
-static void upload_firmware(uint8_t boot_stat, struct bhi385_dev *dev);
-
 /*! @brief Prints self test response.
  *
  *  @param[in] self_test_resp : Self test response.
@@ -66,15 +52,14 @@ static void upload_firmware(uint8_t boot_stat, struct bhi385_dev *dev);
  */
 static void print_self_test_resp(struct bhi385_self_test_resp *self_test_resp, struct bhi385_dev *dev);
 
-enum bhi385_intf intf;
-
 int main(void)
 {
-    uint8_t chip_id = 0;
+    enum bhi385_intf intf;
+
     uint16_t version = 0;
     int8_t rslt;
     struct bhi385_dev bhy;
-    uint8_t hif_ctrl, boot_status, hintr_ctrl;
+    uint8_t boot_status = 0;
     struct bhi385_self_test_resp self_test_resp;
 
 #ifdef BHI385_USE_I2C
@@ -85,48 +70,9 @@ int main(void)
 
     setup_interfaces(true, intf); /* Perform a power on reset */
 
-#ifdef BHI385_USE_I2C
-    rslt = bhi385_init(BHI385_I2C_INTERFACE,
-                       bhi385_i2c_read,
-                       bhi385_i2c_write,
-                       bhi385_delay_us,
-                       BHI385_RD_WR_LEN,
-                       NULL,
-                       &bhy);
-#else
-    rslt = bhi385_init(BHI385_SPI_INTERFACE,
-                       bhi385_spi_read,
-                       bhi385_spi_write,
-                       bhi385_delay_us,
-                       BHI385_RD_WR_LEN,
-                       NULL,
-                       &bhy);
-#endif
-    print_api_error(rslt, &bhy);
+    init_sensor(&bhy, intf);
 
-    rslt = bhi385_soft_reset(&bhy);
-    print_api_error(rslt, &bhy);
-
-    rslt = bhi385_get_chip_id(&chip_id, &bhy);
-    print_api_error(rslt, &bhy);
-
-    /* Check for a valid Chip ID */
-    if (chip_id == BHI385_CHIP_ID)
-    {
-        printf("Chip ID read 0x%X\r\n", chip_id);
-    }
-    else
-    {
-        printf("Device not found. Chip ID read 0x%X\r\n", chip_id);
-    }
-
-    /* Configure the host interface */
-    hif_ctrl = BHI385_HIF_CTRL_ASYNC_STATUS_CHANNEL;
-    rslt = bhi385_set_host_intf_ctrl(hif_ctrl, &bhy);
-    print_api_error(rslt, &bhy);
-    hintr_ctrl = 0;
-    rslt = bhi385_get_host_interrupt_ctrl(&hintr_ctrl, &bhy);
-    print_api_error(rslt, &bhy);
+    setup_host_int_ctrl(&bhy);
 
     /* Check if the sensor is ready to load firmware */
     rslt = bhi385_get_boot_status(&boot_status, &bhy);
@@ -134,7 +80,7 @@ int main(void)
 
     if (boot_status & BHI385_BST_HOST_INTERFACE_READY)
     {
-        upload_firmware(boot_status, &bhy);
+        upload_firmware(bhi385_firmware_image, sizeof(bhi385_firmware_image), &bhy);
 
         rslt = bhi385_get_kernel_version(&version, &bhy);
         print_api_error(rslt, &bhy);
@@ -219,49 +165,4 @@ static void print_self_test_resp(struct bhi385_self_test_resp *self_test_resp, s
     }
 
     print_api_error(rslt, dev);
-}
-
-static void print_api_error(int8_t rslt, struct bhi385_dev *dev)
-{
-    if (rslt != BHI385_OK)
-    {
-        printf("%s\r\n", get_api_error(rslt));
-        if ((rslt == BHI385_E_IO) && (dev != NULL))
-        {
-            printf("%s\r\n", get_coines_error(dev->hif.intf_rslt));
-            dev->hif.intf_rslt = BHI385_INTF_RET_SUCCESS;
-        }
-
-        exit(0);
-    }
-}
-
-static void upload_firmware(uint8_t boot_stat, struct bhi385_dev *dev)
-{
-    uint8_t sensor_error;
-    int8_t temp_rslt;
-    int8_t rslt = BHI385_OK;
-
-    printf("Loading firmware into RAM.\r\n");
-    rslt = bhi385_upload_firmware_to_ram(bhi385_firmware_image, sizeof(bhi385_firmware_image), dev);
-    temp_rslt = bhi385_get_error_value(&sensor_error, dev);
-    if (sensor_error)
-    {
-        printf("%s\r\n", get_sensor_error_text(sensor_error));
-    }
-
-    print_api_error(rslt, dev);
-    print_api_error(temp_rslt, dev);
-
-    printf("Booting from RAM.\r\n");
-    rslt = bhi385_boot_from_ram(dev);
-
-    temp_rslt = bhi385_get_error_value(&sensor_error, dev);
-    if (sensor_error)
-    {
-        printf("%s\r\n", get_sensor_error_text(sensor_error));
-    }
-
-    print_api_error(rslt, dev);
-    print_api_error(temp_rslt, dev);
 }
