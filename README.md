@@ -2,11 +2,11 @@
 
 This package contains the BHI385 generically clustered as the BHy SensorAPI.
 
-This package can be used together with [COINES](https://www.bosch-sensortec.com/software-tools/tools/coines-sdk/) to modify, compile, and run the sample applications.
+This package can be used together with [COINES](https://www.bosch-sensortec.com/en/software-tools/tools/coines) to modify, compile, and run the sample applications.
 
 
 
 
 ---
 
-#### Copyright (C) 2025 Bosch Sensortec GmbH. All rights reserved
+#### Copyright (C) 2026 Bosch Sensortec GmbH. All rights reserved
