@@ -1,0 +1,9 @@
+[submodule "coines"]
+	path = coines
+	url = https://github.com/boschsensortec/COINES_SDK.git
+[submodule "COINES_SDK"]
+	path = COINES_SDK
+	url = https://github.com/boschsensortec/COINES_SDK.git
+[submodule "submodules/coines"]
+	path = submodules/coines
+	url = https://github.com/boschsensortec/COINES_SDK.git
