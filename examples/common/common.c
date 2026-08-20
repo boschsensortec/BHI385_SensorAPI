@@ -33,6 +33,7 @@
  * @file    common.c
  * @brief   Common source file for the BHy examples
  *
+ * Note: Parts of the code in this file are from GenAI GitHub Copilot
  */
 
 #include "common.h"
@@ -63,6 +64,82 @@ static enum coines_multi_io_pin int_pin = BHY385_APP30_INT_PIN;
 static enum coines_multi_io_pin reset_pin = BHY385_APP30_RESET_PIN;
 #endif
 
+/*!
+ * @brief Generic lookup table entry mapping an integer key to a string value.
+ *        Used to replace long switch-case chains with simple table lookups,
+ *        keeping the lookup functions at a constant, low cyclomatic complexity.
+ */
+typedef struct
+{
+    int32_t key;
+    char *value;
+} bhi385_str_lut_entry;
+
+/*!
+ * @brief Generic lookup table entry mapping an integer key to a uint8_t value.
+ */
+typedef struct
+{
+    int32_t key;
+    uint8_t value;
+} bhi385_u8_lut_entry;
+
+/*!
+ * @brief Looks up a string value for the given key in a lookup table.
+ *
+ * @param[in] table         Lookup table to search.
+ * @param[in] table_size    Number of entries in the table.
+ * @param[in] key           Key to search for.
+ * @param[in] default_value Value returned when the key is not found.
+ *
+ * @return The matching value, or default_value if the key is not present.
+ */
+static char *bhi385_str_lut_lookup(const bhi385_str_lut_entry *table,
+                                   size_t table_size,
+                                   int32_t key,
+                                   char *default_value)
+{
+    size_t i;
+
+    for (i = 0; i < table_size; i++)
+    {
+        if (table[i].key == key)
+        {
+            return table[i].value;
+        }
+    }
+
+    return default_value;
+}
+
+/*!
+ * @brief Looks up a uint8_t value for the given key in a lookup table.
+ *
+ * @param[in] table         Lookup table to search.
+ * @param[in] table_size    Number of entries in the table.
+ * @param[in] key           Key to search for.
+ * @param[in] default_value Value returned when the key is not found.
+ *
+ * @return The matching value, or default_value if the key is not present.
+ */
+static uint8_t bhi385_u8_lut_lookup(const bhi385_u8_lut_entry *table,
+                                    size_t table_size,
+                                    int32_t key,
+                                    uint8_t default_value)
+{
+    size_t i;
+
+    for (i = 0; i < table_size; i++)
+    {
+        if (table[i].key == key)
+        {
+            return table[i].value;
+        }
+    }
+
+    return default_value;
+}
+
 bool get_interrupt_status(void)
 {
     int16_t coines_rslt;
@@ -83,74 +160,29 @@ bool get_interrupt_status(void)
 
 char *get_coines_error(int16_t rslt)
 {
-    char *ret = " ";
+    static const bhi385_str_lut_entry table[] = {
+        { COINES_SUCCESS, " " }, { COINES_E_FAILURE, "[COINES Error] Generic failure" },
+        { COINES_E_COMM_IO_ERROR, "[COINES Error] Communication IO failed. Check connections with the sensor" },
+        { COINES_E_COMM_INIT_FAILED, "[COINES Error] Communication initialization failed" },
+        { COINES_E_UNABLE_OPEN_DEVICE, "[COINES Error] Unable to open device. Check if the board is in use" },
+        { COINES_E_DEVICE_NOT_FOUND, "[COINES Error] Device not found. Check if the board is powered on" },
+        { COINES_E_UNABLE_CLAIM_INTF, "[COINES Error] Unable to claim interface. Check if the board is in use" },
+        { COINES_E_MEMORY_ALLOCATION, "[COINES Error] Error allocating memory" },
+        { COINES_E_NOT_SUPPORTED, "[COINES Error] Feature not supported" },
+        { COINES_E_NULL_PTR, "[COINES Error] Null pointer error" },
+        { COINES_E_COMM_WRONG_RESPONSE, "[COINES Error] Unexpected response" },
+        { COINES_E_SPI16BIT_NOT_CONFIGURED, "[COINES Error] 16-Bit SPI not configured" },
+        { COINES_E_SPI_INVALID_BUS_INTF, "[COINES Error] Invalid SPI bus interface" },
+        { COINES_E_SPI_CONFIG_EXIST, "[COINES Error] SPI already configured" },
+        { COINES_E_SPI_BUS_NOT_ENABLED, "[COINES Error] SPI bus not enabled" },
+        { COINES_E_SPI_CONFIG_FAILED, "[COINES Error] SPI configuration failed" },
+        { COINES_E_I2C_INVALID_BUS_INTF, "[COINES Error] Invalid I2C bus interface" },
+        { COINES_E_I2C_BUS_NOT_ENABLED, "[COINES Error] I2C bus not enabled" },
+        { COINES_E_I2C_CONFIG_FAILED, "[COINES Error] I2C configuration failed" },
+        { COINES_E_I2C_CONFIG_EXIST, "[COINES Error] I2C already configured" },
+    };
 
-    switch (rslt)
-    {
-        case COINES_SUCCESS:
-            break;
-        case COINES_E_FAILURE:
-            ret = "[COINES Error] Generic failure";
-            break;
-        case COINES_E_COMM_IO_ERROR:
-            ret = "[COINES Error] Communication IO failed. Check connections with the sensor";
-            break;
-        case COINES_E_COMM_INIT_FAILED:
-            ret = "[COINES Error] Communication initialization failed";
-            break;
-        case COINES_E_UNABLE_OPEN_DEVICE:
-            ret = "[COINES Error] Unable to open device. Check if the board is in use";
-            break;
-        case COINES_E_DEVICE_NOT_FOUND:
-            ret = "[COINES Error] Device not found. Check if the board is powered on";
-            break;
-        case COINES_E_UNABLE_CLAIM_INTF:
-            ret = "[COINES Error] Unable to claim interface. Check if the board is in use";
-            break;
-        case COINES_E_MEMORY_ALLOCATION:
-            ret = "[COINES Error] Error allocating memory";
-            break;
-        case COINES_E_NOT_SUPPORTED:
-            ret = "[COINES Error] Feature not supported";
-            break;
-        case COINES_E_NULL_PTR:
-            ret = "[COINES Error] Null pointer error";
-            break;
-        case COINES_E_COMM_WRONG_RESPONSE:
-            ret = "[COINES Error] Unexpected response";
-            break;
-        case COINES_E_SPI16BIT_NOT_CONFIGURED:
-            ret = "[COINES Error] 16-Bit SPI not configured";
-            break;
-        case COINES_E_SPI_INVALID_BUS_INTF:
-            ret = "[COINES Error] Invalid SPI bus interface";
-            break;
-        case COINES_E_SPI_CONFIG_EXIST:
-            ret = "[COINES Error] SPI already configured";
-            break;
-        case COINES_E_SPI_BUS_NOT_ENABLED:
-            ret = "[COINES Error] SPI bus not enabled";
-            break;
-        case COINES_E_SPI_CONFIG_FAILED:
-            ret = "[COINES Error] SPI configuration failed";
-            break;
-        case COINES_E_I2C_INVALID_BUS_INTF:
-            ret = "[COINES Error] Invalid I2C bus interface";
-            break;
-        case COINES_E_I2C_BUS_NOT_ENABLED:
-            ret = "[COINES Error] I2C bus not enabled";
-            break;
-        case COINES_E_I2C_CONFIG_FAILED:
-            ret = "[COINES Error] I2C configuration failed";
-            break;
-        case COINES_E_I2C_CONFIG_EXIST:
-            ret = "[COINES Error] I2C already configured";
-            break;
-        default:
-            ret = "[COINES Error] Unknown error code";
-    }
-
-    return ret;
+    return bhi385_str_lut_lookup(table, sizeof(table) / sizeof(table[0]), rslt, "[COINES Error] Unknown error code");
 }
 
 char *get_api_error(int8_t error_code)
@@ -493,648 +525,207 @@ void bhi385_delay_us(uint32_t us, void *private_data)
 
 char *get_sensor_error_text(uint8_t sensor_error)
 {
-    char *ret = "Error code not recognized";
+    static const bhi385_str_lut_entry table[] = {
+        { 0x00, "Error code not recognized" },
+        { 0x10, "[Sensor error] Bootloader reports: Firmware Expected Version Mismatch" },
+        { 0x11, "[Sensor error] Bootloader reports: Firmware Upload Failed: Bad Header CRC" },
+        { 0x12, "[Sensor error] Bootloader reports: Firmware Upload Failed: SHA Hash Mismatch" },
+        { 0x13, "[Sensor error] Bootloader reports: Firmware Upload Failed: Bad Image CRC" },
+        { 0x14, "[Sensor error] Bootloader reports: Firmware Upload Failed: ECDSA Signature Verification Failed" },
+        { 0x15, "[Sensor error] Bootloader reports: Firmware Upload Failed: Bad Public Key CRC" },
+        { 0x16, "[Sensor error] Bootloader reports: Firmware Upload Failed: Signed Firmware Required" },
+        { 0x17, "[Sensor error] Bootloader reports: Firmware Upload Failed: FW Header Missing" },
+        { 0x19, "[Sensor error] Bootloader reports: Unexpected Watchdog Reset" },
+        { 0x1A, "[Sensor error] ROM Version Mismatch" },
+        { 0x1B, "[Sensor error] Bootloader reports: Fatal Firmware Error" },
+        { 0x1C, "[Sensor error] Chained Firmware Error: Next Payload Not Found" },
+        { 0x1D, "[Sensor error] Chained Firmware Error: Payload Not Valid" },
+        { 0x1E, "[Sensor error] Chained Firmware Error: Payload Entries Invalid" },
+        { 0x1F, "[Sensor error] Bootloader reports: Bootloader Error: OTP CRC Invalid" },
+        { 0x20, "[Sensor error] Firmware Init Failed" },
+        { 0x21, "[Sensor error] Sensor Init Failed: Unexpected Device ID" },
+        { 0x22, "[Sensor error] Sensor Init Failed: No Response from Device" },
+        { 0x23, "[Sensor error] Sensor Init Failed: Unknown" }, { 0x24, "[Sensor error] Sensor Error: No Valid Data" },
+        { 0x25, "[Sensor error] Slow Sample Rate" }, { 0x26, "[Sensor error] Data Overflow (saturated sensor data)" },
+        { 0x27, "[Sensor error] Stack Overflow" }, { 0x28, "[Sensor error] Insufficient Free RAM" },
+        { 0x29, "[Sensor error] Sensor Init Failed: Driver Parsing Error" },
+        { 0x2A, "[Sensor error] Too Many RAM Banks Required" }, { 0x2B, "[Sensor error] Invalid Event Specified" },
+        { 0x2C, "[Sensor error] More than 32 On Change" }, { 0x2D, "[Sensor error] Firmware Too Large" },
+        { 0x2F, "[Sensor error] Invalid RAM Banks" }, { 0x30, "[Sensor error] Math Error" },
+        { 0x40, "[Sensor error] Memory Error" }, { 0x41, "[Sensor error] SWI3 Error" },
+        { 0x42, "[Sensor error] SWI4 Error" }, { 0x43, "[Sensor error] Illegal Instruction Error" },
+        { 0x44, "[Sensor error] Bootloader reports: Unhandled Interrupt Error / Exception / Postmortem Available" },
+        { 0x45, "[Sensor error] Invalid Memory Access" }, { 0x50, "[Sensor error] Algorithm Error: BSX Init" },
+        { 0x51, "[Sensor error] Algorithm Error: BSX Do Step" }, { 0x52, "[Sensor error] Algorithm Error: Update Sub" },
+        { 0x53, "[Sensor error] Algorithm Error: Get Sub" }, { 0x54, "[Sensor error] Algorithm Error: Get Phys" },
+        { 0x55, "[Sensor error] Algorithm Error: Unsupported Phys Rate" },
+        { 0x56, "[Sensor error] Algorithm Error: Cannot find BSX Driver" },
+        { 0x60, "[Sensor error] Sensor Self-Test Failure" }, { 0x61, "[Sensor error] Sensor Self-Test X Axis Failure" },
+        { 0x62, "[Sensor error] Sensor Self-Test Y Axis Failure" },
+        { 0x64, "[Sensor error] Sensor Self-Test Z Axis Failure" }, { 0x65, "[Sensor error] FOC Failure" },
+        { 0x66, "[Sensor error] Sensor Busy" }, { 0x6F, "[Sensor error] Self-Test or FOC Test Unsupported" },
+        { 0x72, "[Sensor error] No Host Interrupt Set" },
+        { 0x73, "[Sensor error] Event ID Passed to Host Interface Has No Known Size" },
+        { 0x75, "[Sensor error] Host Download Channel Underflow (Host Read Too Fast)" },
+        { 0x76, "[Sensor error] Host Upload Channel Overflow (Host Wrote Too Fast)" },
+        { 0x77, "[Sensor error] Host Download Channel Empty" }, { 0x78, "[Sensor error] DMA Error" },
+        { 0x79, "[Sensor error] Corrupted Input Block Chain" }, { 0x7A, "[Sensor error] Corrupted Output Block Chain" },
+        { 0x7B, "[Sensor error] Buffer Block Manager Error" },
+        { 0x7C, "[Sensor error] Input Channel Not Word Aligned" }, { 0x7D, "[Sensor error] Too Many Flush Events" },
+        { 0x7E, "[Sensor error] Unknown Host Channel Error" }, { 0x81, "[Sensor error] Decimation Too Large" },
+        { 0x90, "[Sensor error] Master SPI/I2C Queue Overflow" }, { 0x91, "[Sensor error] SPI/I2C Callback Error" },
+        { 0xA0, "[Sensor error] Timer Scheduling Error" }, { 0xB0, "[Sensor error] Invalid GPIO for Host IRQ" },
+        { 0xB1, "[Sensor error] Error Sending Initialized Meta Events" },
+        { 0xC0, "[Sensor error] Bootloader reports: Command Error" },
+        { 0xC1, "[Sensor error] Bootloader reports: Command Too Long" },
+        { 0xC2, "[Sensor error] Bootloader reports: Command Buffer Overflow" },
+        { 0xD0, "[Sensor error] User Mode Error: Sys Call Invalid" },
+        { 0xD1, "[Sensor error] User Mode Error: Trap Invalid" },
+        { 0xE1, "[Sensor error] Firmware Upload Failed: Firmware header corrupt" },
+        { 0xE2, "[Sensor error] Sensor Data Injection: Invalid input stream" },
+    };
 
-    switch (sensor_error)
-    {
-        case 0x00:
-            break;
-        case 0x10:
-            ret = "[Sensor error] Bootloader reports: Firmware Expected Version Mismatch";
-            break;
-        case 0x11:
-            ret = "[Sensor error] Bootloader reports: Firmware Upload Failed: Bad Header CRC";
-            break;
-        case 0x12:
-            ret = "[Sensor error] Bootloader reports: Firmware Upload Failed: SHA Hash Mismatch";
-            break;
-        case 0x13:
-            ret = "[Sensor error] Bootloader reports: Firmware Upload Failed: Bad Image CRC";
-            break;
-        case 0x14:
-            ret = "[Sensor error] Bootloader reports: Firmware Upload Failed: ECDSA Signature Verification Failed";
-            break;
-        case 0x15:
-            ret = "[Sensor error] Bootloader reports: Firmware Upload Failed: Bad Public Key CRC";
-            break;
-        case 0x16:
-            ret = "[Sensor error] Bootloader reports: Firmware Upload Failed: Signed Firmware Required";
-            break;
-        case 0x17:
-            ret = "[Sensor error] Bootloader reports: Firmware Upload Failed: FW Header Missing";
-            break;
-        case 0x19:
-            ret = "[Sensor error] Bootloader reports: Unexpected Watchdog Reset";
-            break;
-        case 0x1A:
-            ret = "[Sensor error] ROM Version Mismatch";
-            break;
-        case 0x1B:
-            ret = "[Sensor error] Bootloader reports: Fatal Firmware Error";
-            break;
-        case 0x1C:
-            ret = "[Sensor error] Chained Firmware Error: Next Payload Not Found";
-            break;
-        case 0x1D:
-            ret = "[Sensor error] Chained Firmware Error: Payload Not Valid";
-            break;
-        case 0x1E:
-            ret = "[Sensor error] Chained Firmware Error: Payload Entries Invalid";
-            break;
-        case 0x1F:
-            ret = "[Sensor error] Bootloader reports: Bootloader Error: OTP CRC Invalid";
-            break;
-        case 0x20:
-            ret = "[Sensor error] Firmware Init Failed";
-            break;
-        case 0x21:
-            ret = "[Sensor error] Sensor Init Failed: Unexpected Device ID";
-            break;
-        case 0x22:
-            ret = "[Sensor error] Sensor Init Failed: No Response from Device";
-            break;
-        case 0x23:
-            ret = "[Sensor error] Sensor Init Failed: Unknown";
-            break;
-        case 0x24:
-            ret = "[Sensor error] Sensor Error: No Valid Data";
-            break;
-        case 0x25:
-            ret = "[Sensor error] Slow Sample Rate";
-            break;
-        case 0x26:
-            ret = "[Sensor error] Data Overflow (saturated sensor data)";
-            break;
-        case 0x27:
-            ret = "[Sensor error] Stack Overflow";
-            break;
-        case 0x28:
-            ret = "[Sensor error] Insufficient Free RAM";
-            break;
-        case 0x29:
-            ret = "[Sensor error] Sensor Init Failed: Driver Parsing Error";
-            break;
-        case 0x2A:
-            ret = "[Sensor error] Too Many RAM Banks Required";
-            break;
-        case 0x2B:
-            ret = "[Sensor error] Invalid Event Specified";
-            break;
-        case 0x2C:
-            ret = "[Sensor error] More than 32 On Change";
-            break;
-        case 0x2D:
-            ret = "[Sensor error] Firmware Too Large";
-            break;
-        case 0x2F:
-            ret = "[Sensor error] Invalid RAM Banks";
-            break;
-        case 0x30:
-            ret = "[Sensor error] Math Error";
-            break;
-        case 0x40:
-            ret = "[Sensor error] Memory Error";
-            break;
-        case 0x41:
-            ret = "[Sensor error] SWI3 Error";
-            break;
-        case 0x42:
-            ret = "[Sensor error] SWI4 Error";
-            break;
-        case 0x43:
-            ret = "[Sensor error] Illegal Instruction Error";
-            break;
-        case 0x44:
-            ret = "[Sensor error] Bootloader reports: Unhandled Interrupt Error / Exception / Postmortem Available";
-            break;
-        case 0x45:
-            ret = "[Sensor error] Invalid Memory Access";
-            break;
-        case 0x50:
-            ret = "[Sensor error] Algorithm Error: BSX Init";
-            break;
-        case 0x51:
-            ret = "[Sensor error] Algorithm Error: BSX Do Step";
-            break;
-        case 0x52:
-            ret = "[Sensor error] Algorithm Error: Update Sub";
-            break;
-        case 0x53:
-            ret = "[Sensor error] Algorithm Error: Get Sub";
-            break;
-        case 0x54:
-            ret = "[Sensor error] Algorithm Error: Get Phys";
-            break;
-        case 0x55:
-            ret = "[Sensor error] Algorithm Error: Unsupported Phys Rate";
-            break;
-        case 0x56:
-            ret = "[Sensor error] Algorithm Error: Cannot find BSX Driver";
-            break;
-        case 0x60:
-            ret = "[Sensor error] Sensor Self-Test Failure";
-            break;
-        case 0x61:
-            ret = "[Sensor error] Sensor Self-Test X Axis Failure";
-            break;
-        case 0x62:
-            ret = "[Sensor error] Sensor Self-Test Y Axis Failure";
-            break;
-        case 0x64:
-            ret = "[Sensor error] Sensor Self-Test Z Axis Failure";
-            break;
-        case 0x65:
-            ret = "[Sensor error] FOC Failure";
-            break;
-        case 0x66:
-            ret = "[Sensor error] Sensor Busy";
-            break;
-        case 0x6F:
-            ret = "[Sensor error] Self-Test or FOC Test Unsupported";
-            break;
-        case 0x72:
-            ret = "[Sensor error] No Host Interrupt Set";
-            break;
-        case 0x73:
-            ret = "[Sensor error] Event ID Passed to Host Interface Has No Known Size";
-            break;
-        case 0x75:
-            ret = "[Sensor error] Host Download Channel Underflow (Host Read Too Fast)";
-            break;
-        case 0x76:
-            ret = "[Sensor error] Host Upload Channel Overflow (Host Wrote Too Fast)";
-            break;
-        case 0x77:
-            ret = "[Sensor error] Host Download Channel Empty";
-            break;
-        case 0x78:
-            ret = "[Sensor error] DMA Error";
-            break;
-        case 0x79:
-            ret = "[Sensor error] Corrupted Input Block Chain";
-            break;
-        case 0x7A:
-            ret = "[Sensor error] Corrupted Output Block Chain";
-            break;
-        case 0x7B:
-            ret = "[Sensor error] Buffer Block Manager Error";
-            break;
-        case 0x7C:
-            ret = "[Sensor error] Input Channel Not Word Aligned";
-            break;
-        case 0x7D:
-            ret = "[Sensor error] Too Many Flush Events";
-            break;
-        case 0x7E:
-            ret = "[Sensor error] Unknown Host Channel Error";
-            break;
-        case 0x81:
-            ret = "[Sensor error] Decimation Too Large";
-            break;
-        case 0x90:
-            ret = "[Sensor error] Master SPI/I2C Queue Overflow";
-            break;
-        case 0x91:
-            ret = "[Sensor error] SPI/I2C Callback Error";
-            break;
-        case 0xA0:
-            ret = "[Sensor error] Timer Scheduling Error";
-            break;
-        case 0xB0:
-            ret = "[Sensor error] Invalid GPIO for Host IRQ";
-            break;
-        case 0xB1:
-            ret = "[Sensor error] Error Sending Initialized Meta Events";
-            break;
-        case 0xC0:
-            ret = "[Sensor error] Bootloader reports: Command Error";
-            break;
-        case 0xC1:
-            ret = "[Sensor error] Bootloader reports: Command Too Long";
-            break;
-        case 0xC2:
-            ret = "[Sensor error] Bootloader reports: Command Buffer Overflow";
-            break;
-        case 0xD0:
-            ret = "[Sensor error] User Mode Error: Sys Call Invalid";
-            break;
-        case 0xD1:
-            ret = "[Sensor error] User Mode Error: Trap Invalid";
-            break;
-        case 0xE1:
-            ret = "[Sensor error] Firmware Upload Failed: Firmware header corrupt";
-            break;
-        case 0xE2:
-            ret = "[Sensor error] Sensor Data Injection: Invalid input stream";
-            break;
-        default:
-            ret = "[Sensor error] Unknown error code";
-    }
-
-    return ret;
+    return bhi385_str_lut_lookup(table,
+                                 sizeof(table) / sizeof(table[0]),
+                                 sensor_error,
+                                 "[Sensor error] Unknown error code");
 }
 
 char *get_physical_sensor_name(uint8_t sensor_id)
 {
-    char *ret;
+    static const bhi385_str_lut_entry table[] = {
+        { BHI385_PHYS_SENSOR_ID_ACCELEROMETER, "Accelerometer" },
+        { BHI385_PHYS_SENSOR_ID_NOT_SUPPORTED, "Not supported now" }, { BHI385_PHYS_SENSOR_ID_GYROSCOPE, "Gyroscope" },
+        { BHI385_PHYS_SENSOR_ID_MAGNETOMETER, "Magnetometer" },
+        { BHI385_PHYS_SENSOR_ID_TEMP_GYRO, "Temperature Gyroscope" },
+        { BHI385_PHYS_SENSOR_ID_ANY_MOTION, "Any Motion not available now" },
+        { BHI385_PHYS_SENSOR_ID_PRESSURE, "Pressure" }, { BHI385_PHYS_SENSOR_ID_POSITION, "Position" },
+        { BHI385_PHYS_SENSOR_ID_HUMIDITY, "Humidity" }, { BHI385_PHYS_SENSOR_ID_TEMPERATURE, "Temperature" },
+        { BHI385_PHYS_SENSOR_ID_GAS_RESISTOR, "Gas Resistor" },
+        { BHI385_PHYS_SENSOR_ID_MAGNETOMETER_DUMMY, "Dummy magnetometer" },
+        { BHI385_PHYS_SENSOR_ID_PHYS_STEP_COUNTER, "Step Counter" },
+        { BHI385_PHYS_SENSOR_ID_PHYS_STEP_DETECTOR, "Step Detector" },
+        { BHI385_PHYS_SENSOR_ID_PHYS_SIGN_MOTION, "Significant Motion" },
+        { BHI385_PHYS_SENSOR_ID_PHYS_ANY_MOTION, "Any Motion" },
+        { BHI385_PHYS_SENSOR_ID_EX_CAMERA_INPUT, "External Camera Input" }, { BHI385_PHYS_SENSOR_ID_GPS, "GPS" },
+        { BHI385_PHYS_SENSOR_ID_LIGHT, "Light" }, { BHI385_PHYS_SENSOR_ID_PROXIMITY, "Proximity" },
+        { BHI385_PHYS_SENSOR_ID_ACT_REC, "Activity Recognition" },
+        { BHI385_PHYS_SENSOR_ID_PHYS_NO_MOTION, "No Motion" },
+        { BHI385_PHYS_SENSOR_ID_WRIST_GESTURE_DETECT, "Wrist Gesture Detector" },
+        { BHI385_PHYS_SENSOR_ID_WRIST_WEAR_WAKEUP, "Wrist Wear Wakeup" },
+    };
 
-    switch (sensor_id)
-    {
-        case BHI385_PHYS_SENSOR_ID_ACCELEROMETER:
-            ret = "Accelerometer";
-            break;
-        case BHI385_PHYS_SENSOR_ID_NOT_SUPPORTED:
-            ret = "Not supported now";
-            break;
-        case BHI385_PHYS_SENSOR_ID_GYROSCOPE:
-            ret = "Gyroscope";
-            break;
-        case BHI385_PHYS_SENSOR_ID_MAGNETOMETER:
-            ret = "Magnetometer";
-            break;
-        case BHI385_PHYS_SENSOR_ID_TEMP_GYRO:
-            ret = "Temperature Gyroscope";
-            break;
-        case BHI385_PHYS_SENSOR_ID_ANY_MOTION:
-            ret = "Any Motion not available now";
-            break;
-        case BHI385_PHYS_SENSOR_ID_PRESSURE:
-            ret = "Pressure";
-            break;
-        case BHI385_PHYS_SENSOR_ID_POSITION:
-            ret = "Position";
-            break;
-        case BHI385_PHYS_SENSOR_ID_HUMIDITY:
-            ret = "Humidity";
-            break;
-        case BHI385_PHYS_SENSOR_ID_TEMPERATURE:
-            ret = "Temperature";
-            break;
-        case BHI385_PHYS_SENSOR_ID_GAS_RESISTOR:
-            ret = "Gas Resistor";
-            break;
-        case BHI385_PHYS_SENSOR_ID_MAGNETOMETER_DUMMY:
-            ret = "Dummy magnetometer";
-            break;
-        case BHI385_PHYS_SENSOR_ID_PHYS_STEP_COUNTER:
-            ret = "Step Counter";
-            break;
-        case BHI385_PHYS_SENSOR_ID_PHYS_STEP_DETECTOR:
-            ret = "Step Detector";
-            break;
-        case BHI385_PHYS_SENSOR_ID_PHYS_SIGN_MOTION:
-            ret = "Significant Motion";
-            break;
-        case BHI385_PHYS_SENSOR_ID_PHYS_ANY_MOTION:
-            ret = "Any Motion";
-            break;
-        case BHI385_PHYS_SENSOR_ID_EX_CAMERA_INPUT:
-            ret = "External Camera Input";
-            break;
-        case BHI385_PHYS_SENSOR_ID_GPS:
-            ret = "GPS";
-            break;
-        case BHI385_PHYS_SENSOR_ID_LIGHT:
-            ret = "Light";
-            break;
-        case BHI385_PHYS_SENSOR_ID_PROXIMITY:
-            ret = "Proximity";
-            break;
-        case BHI385_PHYS_SENSOR_ID_ACT_REC:
-            ret = "Activity Recognition";
-            break;
-        case BHI385_PHYS_SENSOR_ID_PHYS_NO_MOTION:
-            ret = "No Motion";
-            break;
-        case BHI385_PHYS_SENSOR_ID_WRIST_GESTURE_DETECT:
-            ret = "Wrist Gesture Detector";
-            break;
-        case BHI385_PHYS_SENSOR_ID_WRIST_WEAR_WAKEUP:
-            ret = "Wrist Wear Wakeup";
-            break;
-        default:
-            ret = "Undefined sensor ID ";
-    }
-
-    return ret;
+    return bhi385_str_lut_lookup(table, sizeof(table) / sizeof(table[0]), sensor_id, "Undefined sensor ID ");
 }
 
 uint8_t get_physical_sensor_id(uint8_t virt_sensor_id)
 {
-    uint8_t ret;
+    static const bhi385_u8_lut_entry table[] = {
+        { BHI385_SENSOR_ID_ACC_PASS, BHI385_PHYS_SENSOR_ID_ACCELEROMETER },
+        { BHI385_SENSOR_ID_ACC_RAW, BHI385_PHYS_SENSOR_ID_ACCELEROMETER },
+        { BHI385_SENSOR_ID_ACC, BHI385_PHYS_SENSOR_ID_ACCELEROMETER },
+        { BHI385_SENSOR_ID_ACC_BIAS, BHI385_PHYS_SENSOR_ID_ACCELEROMETER },
+        { BHI385_SENSOR_ID_ACC_WU, BHI385_PHYS_SENSOR_ID_ACCELEROMETER },
+        { BHI385_SENSOR_ID_ACC_RAW_WU, BHI385_PHYS_SENSOR_ID_ACCELEROMETER },
+        { BHI385_SENSOR_ID_GYRO_PASS, BHI385_PHYS_SENSOR_ID_GYROSCOPE },
+        { BHI385_SENSOR_ID_GYRO_RAW, BHI385_PHYS_SENSOR_ID_GYROSCOPE },
+        { BHI385_SENSOR_ID_GYRO, BHI385_PHYS_SENSOR_ID_GYROSCOPE },
+        { BHI385_SENSOR_ID_GYRO_BIAS, BHI385_PHYS_SENSOR_ID_GYROSCOPE },
+        { BHI385_SENSOR_ID_GYRO_WU, BHI385_PHYS_SENSOR_ID_GYROSCOPE },
+        { BHI385_SENSOR_ID_GYRO_RAW_WU, BHI385_PHYS_SENSOR_ID_GYROSCOPE },
+        { BHI385_SENSOR_ID_GYRO_BIAS_WU, BHI385_PHYS_SENSOR_ID_GYROSCOPE },
+        { BHI385_SENSOR_ID_MAG_PASS, BHI385_PHYS_SENSOR_ID_MAGNETOMETER },
+        { BHI385_SENSOR_ID_MAG_RAW, BHI385_PHYS_SENSOR_ID_MAGNETOMETER },
+        { BHI385_SENSOR_ID_MAG, BHI385_PHYS_SENSOR_ID_MAGNETOMETER },
+        { BHI385_SENSOR_ID_MAG_BIAS, BHI385_PHYS_SENSOR_ID_MAGNETOMETER },
+        { BHI385_SENSOR_ID_MAG_WU, BHI385_PHYS_SENSOR_ID_MAGNETOMETER },
+        { BHI385_SENSOR_ID_MAG_RAW_WU, BHI385_PHYS_SENSOR_ID_MAGNETOMETER },
+        { BHI385_SENSOR_ID_MAG_BIAS_WU, BHI385_PHYS_SENSOR_ID_MAGNETOMETER },
+    };
 
-    switch (virt_sensor_id)
-    {
-        case BHI385_SENSOR_ID_ACC_PASS:
-        case BHI385_SENSOR_ID_ACC_RAW:
-        case BHI385_SENSOR_ID_ACC:
-        case BHI385_SENSOR_ID_ACC_BIAS:
-        case BHI385_SENSOR_ID_ACC_WU:
-        case BHI385_SENSOR_ID_ACC_RAW_WU:
-            ret = BHI385_PHYS_SENSOR_ID_ACCELEROMETER;
-            break;
-        case BHI385_SENSOR_ID_GYRO_PASS:
-        case BHI385_SENSOR_ID_GYRO_RAW:
-        case BHI385_SENSOR_ID_GYRO:
-        case BHI385_SENSOR_ID_GYRO_BIAS:
-        case BHI385_SENSOR_ID_GYRO_WU:
-        case BHI385_SENSOR_ID_GYRO_RAW_WU:
-        case BHI385_SENSOR_ID_GYRO_BIAS_WU:
-            ret = BHI385_PHYS_SENSOR_ID_GYROSCOPE;
-            break;
-        case BHI385_SENSOR_ID_MAG_PASS:
-        case BHI385_SENSOR_ID_MAG_RAW:
-        case BHI385_SENSOR_ID_MAG:
-        case BHI385_SENSOR_ID_MAG_BIAS:
-        case BHI385_SENSOR_ID_MAG_WU:
-        case BHI385_SENSOR_ID_MAG_RAW_WU:
-        case BHI385_SENSOR_ID_MAG_BIAS_WU:
-            ret = BHI385_PHYS_SENSOR_ID_MAGNETOMETER;
-            break;
-        default:
-            ret = BHI385_PHYS_SENSOR_ID_NOT_SUPPORTED;
-            break;
-    }
-
-    return ret;
+    return bhi385_u8_lut_lookup(table,
+                                sizeof(table) / sizeof(table[0]),
+                                virt_sensor_id,
+                                BHI385_PHYS_SENSOR_ID_NOT_SUPPORTED);
 }
 
 char *get_sensor_name(uint8_t sensor_id)
 {
+    static const bhi385_str_lut_entry table[] = {
+        { BHI385_SENSOR_ID_ACC_PASS, "Accelerometer passthrough" },
+        { BHI385_SENSOR_ID_ACC_RAW, "Accelerometer uncalibrated" }, { BHI385_SENSOR_ID_ACC, "Accelerometer corrected" },
+        { BHI385_SENSOR_ID_ACC_BIAS, "Accelerometer offset" },
+        { BHI385_SENSOR_ID_ACC_WU, "Accelerometer corrected wake up" },
+        { BHI385_SENSOR_ID_ACC_RAW_WU, "Accelerometer uncalibrated wake up" },
+        { BHI385_SENSOR_ID_GYRO_PASS, "Gyroscope passthrough" },
+        { BHI385_SENSOR_ID_GYRO_RAW, "Gyroscope uncalibrated" }, { BHI385_SENSOR_ID_GYRO, "Gyroscope corrected" },
+        { BHI385_SENSOR_ID_GYRO_BIAS, "Gyroscope offset" }, { BHI385_SENSOR_ID_GYRO_WU, "Gyroscope wake up" },
+        { BHI385_SENSOR_ID_GYRO_RAW_WU, "Gyroscope uncalibrated wake up" },
+        { BHI385_SENSOR_ID_MAG_PASS, "Magnetometer passthrough" },
+        { BHI385_SENSOR_ID_MAG_RAW, "Magnetometer uncalibrated" }, { BHI385_SENSOR_ID_MAG, "Magnetometer corrected" },
+        { BHI385_SENSOR_ID_MAG_BIAS, "Magnetometer offset" }, { BHI385_SENSOR_ID_MAG_WU, "Magnetometer wake up" },
+        { BHI385_SENSOR_ID_MAG_RAW_WU, "Magnetometer uncalibrated wake up" },
+        { BHI385_SENSOR_ID_GRA, "Gravity vector" }, { BHI385_SENSOR_ID_GRA_WU, "Gravity vector wake up" },
+        { BHI385_SENSOR_ID_LACC, "Linear acceleration" }, { BHI385_SENSOR_ID_LACC_WU, "Linear acceleration wake up" },
+        { BHI385_SENSOR_ID_RV, "Rotation vector" }, { BHI385_SENSOR_ID_RV_WU, "Rotation vector wake up" },
+        { BHI385_SENSOR_ID_GAMERV, "Game rotation vector" },
+        { BHI385_SENSOR_ID_GAMERV_WU, "Game rotation vector wake up" },
+        { BHI385_SENSOR_ID_GEORV, "Geo-magnetic rotation vector" },
+        { BHI385_SENSOR_ID_GEORV_WU, "Geo-magnetic rotation vector wake up" }, { BHI385_SENSOR_ID_ORI, "Orientation" },
+        { BHI385_SENSOR_ID_ORI_WU, "Orientation wake up" },
+        { BHI385_SENSOR_ID_ACC_BIAS_WU, "Accelerometer offset wake up" },
+        { BHI385_SENSOR_ID_GYRO_BIAS_WU, "Gyroscope offset wake up" },
+        { BHI385_SENSOR_ID_MAG_BIAS_WU, "Magnetometer offset wake up" }, { BHI385_SENSOR_ID_TEMP, "Temperature" },
+        { BHI385_SENSOR_ID_BARO, "Barometer" }, { BHI385_SENSOR_ID_HUM, "Humidity" }, { BHI385_SENSOR_ID_GAS, "Gas" },
+        { BHI385_SENSOR_ID_TEMP_WU, "Temperature wake up" }, { BHI385_SENSOR_ID_BARO_WU, "Barometer wake up" },
+        { BHI385_SENSOR_ID_HUM_WU, "Humidity wake up" }, { BHI385_SENSOR_ID_GAS_WU, "Gas wake up" },
+        { BHI385_SENSOR_ID_KLIO, "Klio" }, { BHI385_SENSOR_ID_KLIO_LOG, "Klio log" },
+        { BHI385_SENSOR_ID_SI_ACCEL, "SI Accel" }, { BHI385_SENSOR_ID_SI_GYROS, "SI Gyro" },
+        { BHI385_SENSOR_ID_LIGHT, "Light" }, { BHI385_SENSOR_ID_LIGHT_WU, "Light wake up" },
+        { BHI385_SENSOR_ID_PROX, "Proximity" }, { BHI385_SENSOR_ID_PROX_WU, "Proximity wake up" },
+        { BHI385_SENSOR_ID_STC, "Step counter" }, { BHI385_SENSOR_ID_STC_WU, "Step counter wake up" },
+        { BHI385_SENSOR_ID_STC_LP, "Low Power Step counter" },
+        { BHI385_SENSOR_ID_STC_LP_WU, "Low Power Step counter wake up" },
+        { BHI385_SENSOR_ID_SIG, "Significant motion" }, { BHI385_SENSOR_ID_STD, "Step detector" },
+        { BHI385_SENSOR_ID_STD_WU, "Step detector wake up" }, { BHI385_SENSOR_ID_TILT_DETECTOR, "Tilt detector" },
+        { BHI385_SENSOR_ID_WAKE_GESTURE, "Wake gesture" }, { BHI385_SENSOR_ID_GLANCE_GESTURE, "Glance gesture" },
+        { BHI385_SENSOR_ID_PICKUP_GESTURE, "Pickup gesture" }, { BHI385_SENSOR_BMP_TEMPERATURE, "BMP Temperature" },
+        { BHI385_SENSOR_ID_SIG_LP_WU, "Low Power Significant motion wake up" },
+        { BHI385_SENSOR_ID_STD_LP, "Low Power Step detector" },
+        { BHI385_SENSOR_ID_STD_LP_WU, "Low Power Step detector wake up" },
+        { BHI385_SENSOR_ID_AR, "Activity recognition" }, { BHI385_SENSOR_ID_EXCAMERA, "External camera trigger" },
+        { BHI385_SENSOR_ID_GPS, "GPS" }, { BHI385_SENSOR_ID_WRIST_TILT_GESTURE, "Wrist tilt gesture" },
+        { BHI385_SENSOR_ID_DEVICE_ORI, "Device orientation" },
+        { BHI385_SENSOR_ID_DEVICE_ORI_WU, "Device orientation wake up" },
+        { BHI385_SENSOR_ID_STATIONARY_DET, "Stationary detect" },
+        { BHI385_SENSOR_BMP_TEMPERATURE_WU, "BMP Temperature wake up" },
+        { BHI385_SENSOR_ID_ANY_MOTION_LP_WU, "Low Power Any motion wake up" },
+        { BHI385_SENSOR_ID_NO_MOTION_LP_WU, "Low Power No Motion wake up" },
+        { BHI385_SENSOR_ID_MOTION_DET, "Motion detect" },
+        { BHI385_SENSOR_ID_AR_WEAR_WU, "Activity recognition for Wearables" },
+        { BHI385_SENSOR_ID_WRIST_WEAR_LP_WU, "Low Power Wrist Wear wake up" },
+        { BHI385_SENSOR_ID_WRIST_GEST_DETECT_LP_WU, "Low Power Wrist Gesture wake up" },
+        { BHI385_SENSOR_ID_MULTI_TAP, "Multi Tap Detector" }, { BHI385_SENSOR_ID_AIR_QUALITY, "Air Quality" },
+        { BHI385_SENSOR_ID_HEAD_ORI_MIS_ALG, "Head Misalignment Calibrator" },
+        { BHI385_SENSOR_ID_IMU_HEAD_ORI_Q, "IMU Head Orientation Quaternion" },
+        { BHI385_SENSOR_ID_NDOF_HEAD_ORI_Q, "NDOF Head Orientation Quaternion" },
+        { BHI385_SENSOR_ID_IMU_HEAD_ORI_E, "IMU Head Orientation Euler" },
+        { BHI385_SENSOR_ID_NDOF_HEAD_ORI_E, "NDOF Head Orientation Euler" },
+        { BHI385_SENSOR_ID_PRESSURE, "BMP Pressure" }, { BHI385_SENSOR_ID_PRESSURE_WU, "BMP Pressure Wakeup" },
+    };
     char *ret;
 
-    switch (sensor_id)
+    ret = bhi385_str_lut_lookup(table, sizeof(table) / sizeof(table[0]), sensor_id, NULL);
+    if (ret == NULL)
     {
-        case BHI385_SENSOR_ID_ACC_PASS:
-            ret = "Accelerometer passthrough";
-            break;
-        case BHI385_SENSOR_ID_ACC_RAW:
-            ret = "Accelerometer uncalibrated";
-            break;
-        case BHI385_SENSOR_ID_ACC:
-            ret = "Accelerometer corrected";
-            break;
-        case BHI385_SENSOR_ID_ACC_BIAS:
-            ret = "Accelerometer offset";
-            break;
-        case BHI385_SENSOR_ID_ACC_WU:
-            ret = "Accelerometer corrected wake up";
-            break;
-        case BHI385_SENSOR_ID_ACC_RAW_WU:
-            ret = "Accelerometer uncalibrated wake up";
-            break;
-        case BHI385_SENSOR_ID_GYRO_PASS:
-            ret = "Gyroscope passthrough";
-            break;
-        case BHI385_SENSOR_ID_GYRO_RAW:
-            ret = "Gyroscope uncalibrated";
-            break;
-        case BHI385_SENSOR_ID_GYRO:
-            ret = "Gyroscope corrected";
-            break;
-        case BHI385_SENSOR_ID_GYRO_BIAS:
-            ret = "Gyroscope offset";
-            break;
-        case BHI385_SENSOR_ID_GYRO_WU:
-            ret = "Gyroscope wake up";
-            break;
-        case BHI385_SENSOR_ID_GYRO_RAW_WU:
-            ret = "Gyroscope uncalibrated wake up";
-            break;
-        case BHI385_SENSOR_ID_MAG_PASS:
-            ret = "Magnetometer passthrough";
-            break;
-        case BHI385_SENSOR_ID_MAG_RAW:
-            ret = "Magnetometer uncalibrated";
-            break;
-        case BHI385_SENSOR_ID_MAG:
-            ret = "Magnetometer corrected";
-            break;
-        case BHI385_SENSOR_ID_MAG_BIAS:
-            ret = "Magnetometer offset";
-            break;
-        case BHI385_SENSOR_ID_MAG_WU:
-            ret = "Magnetometer wake up";
-            break;
-        case BHI385_SENSOR_ID_MAG_RAW_WU:
-            ret = "Magnetometer uncalibrated wake up";
-            break;
-        case BHI385_SENSOR_ID_GRA:
-            ret = "Gravity vector";
-            break;
-        case BHI385_SENSOR_ID_GRA_WU:
-            ret = "Gravity vector wake up";
-            break;
-        case BHI385_SENSOR_ID_LACC:
-            ret = "Linear acceleration";
-            break;
-        case BHI385_SENSOR_ID_LACC_WU:
-            ret = "Linear acceleration wake up";
-            break;
-        case BHI385_SENSOR_ID_RV:
-            ret = "Rotation vector";
-            break;
-        case BHI385_SENSOR_ID_RV_WU:
-            ret = "Rotation vector wake up";
-            break;
-        case BHI385_SENSOR_ID_GAMERV:
-            ret = "Game rotation vector";
-            break;
-        case BHI385_SENSOR_ID_GAMERV_WU:
-            ret = "Game rotation vector wake up";
-            break;
-        case BHI385_SENSOR_ID_GEORV:
-            ret = "Geo-magnetic rotation vector";
-            break;
-        case BHI385_SENSOR_ID_GEORV_WU:
-            ret = "Geo-magnetic rotation vector wake up";
-            break;
-        case BHI385_SENSOR_ID_ORI:
-            ret = "Orientation";
-            break;
-        case BHI385_SENSOR_ID_ORI_WU:
-            ret = "Orientation wake up";
-            break;
-        case BHI385_SENSOR_ID_ACC_BIAS_WU:
-            ret = "Accelerometer offset wake up";
-            break;
-        case BHI385_SENSOR_ID_GYRO_BIAS_WU:
-            ret = "Gyroscope offset wake up";
-            break;
-        case BHI385_SENSOR_ID_MAG_BIAS_WU:
-            ret = "Magnetometer offset wake up";
-            break;
-        case BHI385_SENSOR_ID_TEMP:
-            ret = "Temperature";
-            break;
-        case BHI385_SENSOR_ID_BARO:
-            ret = "Barometer";
-            break;
-        case BHI385_SENSOR_ID_HUM:
-            ret = "Humidity";
-            break;
-        case BHI385_SENSOR_ID_GAS:
-            ret = "Gas";
-            break;
-        case BHI385_SENSOR_ID_TEMP_WU:
-            ret = "Temperature wake up";
-            break;
-        case BHI385_SENSOR_ID_BARO_WU:
-            ret = "Barometer wake up";
-            break;
-        case BHI385_SENSOR_ID_HUM_WU:
-            ret = "Humidity wake up";
-            break;
-        case BHI385_SENSOR_ID_GAS_WU:
-            ret = "Gas wake up";
-            break;
-        case BHI385_SENSOR_ID_KLIO:
-            ret = "Klio";
-            break;
-        case BHI385_SENSOR_ID_KLIO_LOG:
-            ret = "Klio log";
-            break;
-        case BHI385_SENSOR_ID_SI_ACCEL:
-            ret = "SI Accel";
-            break;
-        case BHI385_SENSOR_ID_SI_GYROS:
-            ret = "SI Gyro";
-            break;
-        case BHI385_SENSOR_ID_LIGHT:
-            ret = "Light";
-            break;
-        case BHI385_SENSOR_ID_LIGHT_WU:
-            ret = "Light wake up";
-            break;
-        case BHI385_SENSOR_ID_PROX:
-            ret = "Proximity";
-            break;
-        case BHI385_SENSOR_ID_PROX_WU:
-            ret = "Proximity wake up";
-            break;
-        case BHI385_SENSOR_ID_STC:
-            ret = "Step counter";
-            break;
-        case BHI385_SENSOR_ID_STC_WU:
-            ret = "Step counter wake up";
-            break;
-        case BHI385_SENSOR_ID_STC_LP:
-            ret = "Low Power Step counter";
-            break;
-        case BHI385_SENSOR_ID_STC_LP_WU:
-            ret = "Low Power Step counter wake up";
-            break;
-        case BHI385_SENSOR_ID_SIG:
-            ret = "Significant motion";
-            break;
-        case BHI385_SENSOR_ID_STD:
-            ret = "Step detector";
-            break;
-        case BHI385_SENSOR_ID_STD_WU:
-            ret = "Step detector wake up";
-            break;
-        case BHI385_SENSOR_ID_TILT_DETECTOR:
-            ret = "Tilt detector";
-            break;
-        case BHI385_SENSOR_ID_WAKE_GESTURE:
-            ret = "Wake gesture";
-            break;
-        case BHI385_SENSOR_ID_GLANCE_GESTURE:
-            ret = "Glance gesture";
-            break;
-        case BHI385_SENSOR_ID_PICKUP_GESTURE:
-            ret = "Pickup gesture";
-            break;
-        case BHI385_SENSOR_BMP_TEMPERATURE:
-            ret = "BMP Temperature";
-            break;
-        case BHI385_SENSOR_ID_SIG_LP_WU:
-            ret = "Low Power Significant motion wake up";
-            break;
-        case BHI385_SENSOR_ID_STD_LP:
-            ret = "Low Power Step detector";
-            break;
-        case BHI385_SENSOR_ID_STD_LP_WU:
-            ret = "Low Power Step detector wake up";
-            break;
-        case BHI385_SENSOR_ID_AR:
-            ret = "Activity recognition";
-            break;
-        case BHI385_SENSOR_ID_EXCAMERA:
-            ret = "External camera trigger";
-            break;
-        case BHI385_SENSOR_ID_GPS:
-            ret = "GPS";
-            break;
-        case BHI385_SENSOR_ID_WRIST_TILT_GESTURE:
-            ret = "Wrist tilt gesture";
-            break;
-        case BHI385_SENSOR_ID_DEVICE_ORI:
-            ret = "Device orientation";
-            break;
-        case BHI385_SENSOR_ID_DEVICE_ORI_WU:
-            ret = "Device orientation wake up";
-            break;
-        case BHI385_SENSOR_ID_STATIONARY_DET:
-            ret = "Stationary detect";
-            break;
-        case BHI385_SENSOR_BMP_TEMPERATURE_WU:
-            ret = "BMP Temperature wake up";
-            break;
-        case BHI385_SENSOR_ID_ANY_MOTION_LP_WU:
-            ret = "Low Power Any motion wake up";
-            break;
-        case BHI385_SENSOR_ID_NO_MOTION_LP_WU:
-            ret = "Low Power No Motion wake up";
-            break;
-        case BHI385_SENSOR_ID_MOTION_DET:
-            ret = "Motion detect";
-            break;
-        case BHI385_SENSOR_ID_AR_WEAR_WU:
-            ret = "Activity recognition for Wearables";
-            break;
-        case BHI385_SENSOR_ID_WRIST_WEAR_LP_WU:
-            ret = "Low Power Wrist Wear wake up";
-            break;
-        case BHI385_SENSOR_ID_WRIST_GEST_DETECT_LP_WU:
-            ret = "Low Power Wrist Gesture wake up";
-            break;
-        case BHI385_SENSOR_ID_MULTI_TAP:
-            ret = "Multi Tap Detector";
-            break;
-        case BHI385_SENSOR_ID_AIR_QUALITY:
-            ret = "Air Quality";
-            break;
-        case BHI385_SENSOR_ID_HEAD_ORI_MIS_ALG:
-            ret = "Head Misalignment Calibrator";
-            break;
-        case BHI385_SENSOR_ID_IMU_HEAD_ORI_Q:
-            ret = "IMU Head Orientation Quaternion";
-            break;
-        case BHI385_SENSOR_ID_NDOF_HEAD_ORI_Q:
-            ret = "NDOF Head Orientation Quaternion";
-            break;
-        case BHI385_SENSOR_ID_IMU_HEAD_ORI_E:
-            ret = "IMU Head Orientation Euler";
-            break;
-        case BHI385_SENSOR_ID_NDOF_HEAD_ORI_E:
-            ret = "NDOF Head Orientation Euler";
-            break;
-        case BHI385_SENSOR_ID_PRESSURE:
-            ret = "BMP Pressure";
-            break;
-        case BHI385_SENSOR_ID_PRESSURE_WU:
-            ret = "BMP Pressure Wakeup";
-            break;
-        default:
-            if ((sensor_id >= BHI385_SENSOR_ID_CUSTOM_START) && (sensor_id <= BHI385_SENSOR_ID_CUSTOM_END))
-            {
-                ret = "Custom sensor ID ";
-            }
-            else
-            {
-                ret = "Undefined sensor ID ";
-            }
+        if ((sensor_id >= BHI385_SENSOR_ID_CUSTOM_START) && (sensor_id <= BHI385_SENSOR_ID_CUSTOM_END))
+        {
+            ret = "Custom sensor ID ";
+        }
+        else
+        {
+            ret = "Undefined sensor ID ";
+        }
     }
 
     return ret;
@@ -1142,351 +733,136 @@ char *get_sensor_name(uint8_t sensor_id)
 
 float get_sensor_dynamic_range_scaling(uint8_t sensor_id, float dynamic_range)
 {
-    float scaling = -1.0f;
+    static const uint8_t scalable_ids[] = {
+        BHI385_SENSOR_ID_ACC_PASS, BHI385_SENSOR_ID_ACC_RAW, BHI385_SENSOR_ID_ACC, BHI385_SENSOR_ID_ACC_BIAS,
+        BHI385_SENSOR_ID_ACC_WU, BHI385_SENSOR_ID_ACC_RAW_WU, BHI385_SENSOR_ID_GYRO_PASS, BHI385_SENSOR_ID_GYRO_RAW,
+        BHI385_SENSOR_ID_GYRO, BHI385_SENSOR_ID_GYRO_BIAS, BHI385_SENSOR_ID_GYRO_WU, BHI385_SENSOR_ID_GYRO_RAW_WU,
+        BHI385_SENSOR_ID_GYRO_BIAS_WU, BHI385_SENSOR_ID_MAG_PASS, BHI385_SENSOR_ID_MAG_RAW, BHI385_SENSOR_ID_MAG,
+        BHI385_SENSOR_ID_MAG_BIAS, BHI385_SENSOR_ID_MAG_WU, BHI385_SENSOR_ID_MAG_RAW_WU, BHI385_SENSOR_ID_MAG_BIAS_WU
+    };
+    size_t i;
 
-    switch (sensor_id)
+    for (i = 0; i < sizeof(scalable_ids) / sizeof(scalable_ids[0]); i++)
     {
-        case BHI385_SENSOR_ID_ACC_PASS:
-        case BHI385_SENSOR_ID_ACC_RAW:
-        case BHI385_SENSOR_ID_ACC:
-        case BHI385_SENSOR_ID_ACC_BIAS:
-        case BHI385_SENSOR_ID_ACC_WU:
-        case BHI385_SENSOR_ID_ACC_RAW_WU:
-            scaling = dynamic_range / 32768.0f;
-            break;
-        case BHI385_SENSOR_ID_GYRO_PASS:
-        case BHI385_SENSOR_ID_GYRO_RAW:
-        case BHI385_SENSOR_ID_GYRO:
-        case BHI385_SENSOR_ID_GYRO_BIAS:
-        case BHI385_SENSOR_ID_GYRO_WU:
-        case BHI385_SENSOR_ID_GYRO_RAW_WU:
-        case BHI385_SENSOR_ID_GYRO_BIAS_WU:
-            scaling = dynamic_range / 32768.0f;
-            break;
-        case BHI385_SENSOR_ID_MAG_PASS:
-        case BHI385_SENSOR_ID_MAG_RAW:
-        case BHI385_SENSOR_ID_MAG:
-        case BHI385_SENSOR_ID_MAG_BIAS:
-        case BHI385_SENSOR_ID_MAG_WU:
-        case BHI385_SENSOR_ID_MAG_RAW_WU:
-        case BHI385_SENSOR_ID_MAG_BIAS_WU:
-            scaling = dynamic_range / 32768.0f;
-            break;
-        default:
-            printf("Sensor ID not supported for dynamic range scaling\r\n");
-            scaling = -1.0f; /* Do not apply the scaling factor */
+        if (scalable_ids[i] == sensor_id)
+        {
+            return dynamic_range / 32768.0f;
+        }
     }
 
-    return scaling;
+    printf("Sensor ID not supported for dynamic range scaling\r\n");
+
+    return -1.0f; /* Do not apply the scaling factor */
 }
 
 char *get_sensor_si_unit(uint8_t sensor_id)
 {
-    char *ret;
+    static const bhi385_str_lut_entry table[] = {
+        { BHI385_SENSOR_ID_ACC_PASS, "Earth g-s" }, { BHI385_SENSOR_ID_ACC_RAW, "Earth g-s" },
+        { BHI385_SENSOR_ID_ACC, "Earth g-s" }, { BHI385_SENSOR_ID_ACC_BIAS, "Earth g-s" },
+        { BHI385_SENSOR_ID_ACC_WU, "Earth g-s" }, { BHI385_SENSOR_ID_ACC_RAW_WU, "Earth g-s" },
+        { BHI385_SENSOR_ID_GYRO_PASS, "degrees/second" }, { BHI385_SENSOR_ID_GYRO_RAW, "degrees/second" },
+        { BHI385_SENSOR_ID_GYRO, "degrees/second" }, { BHI385_SENSOR_ID_GYRO_BIAS, "degrees/second" },
+        { BHI385_SENSOR_ID_GYRO_WU, "degrees/second" }, { BHI385_SENSOR_ID_GYRO_RAW_WU, "degrees/second" },
+        { BHI385_SENSOR_ID_GYRO_BIAS_WU, "degrees/second" }, { BHI385_SENSOR_ID_MAG_PASS, "microtesla" },
+        { BHI385_SENSOR_ID_MAG_RAW, "microtesla" }, { BHI385_SENSOR_ID_MAG, "microtesla" },
+        { BHI385_SENSOR_ID_MAG_BIAS, "microtesla" }, { BHI385_SENSOR_ID_MAG_WU, "microtesla" },
+        { BHI385_SENSOR_ID_MAG_RAW_WU, "microtesla" }, { BHI385_SENSOR_ID_MAG_BIAS_WU, "microtesla" },
+    };
 
-    switch (sensor_id)
-    {
-        case BHI385_SENSOR_ID_ACC_PASS:
-        case BHI385_SENSOR_ID_ACC_RAW:
-        case BHI385_SENSOR_ID_ACC:
-        case BHI385_SENSOR_ID_ACC_BIAS:
-        case BHI385_SENSOR_ID_ACC_WU:
-        case BHI385_SENSOR_ID_ACC_RAW_WU:
-            ret = "Earth g-s";
-            break;
-        case BHI385_SENSOR_ID_GYRO_PASS:
-        case BHI385_SENSOR_ID_GYRO_RAW:
-        case BHI385_SENSOR_ID_GYRO:
-        case BHI385_SENSOR_ID_GYRO_BIAS:
-        case BHI385_SENSOR_ID_GYRO_WU:
-        case BHI385_SENSOR_ID_GYRO_RAW_WU:
-        case BHI385_SENSOR_ID_GYRO_BIAS_WU:
-            ret = "degrees/second";
-            break;
-        case BHI385_SENSOR_ID_MAG_PASS:
-        case BHI385_SENSOR_ID_MAG_RAW:
-        case BHI385_SENSOR_ID_MAG:
-        case BHI385_SENSOR_ID_MAG_BIAS:
-        case BHI385_SENSOR_ID_MAG_WU:
-        case BHI385_SENSOR_ID_MAG_RAW_WU:
-        case BHI385_SENSOR_ID_MAG_BIAS_WU:
-            ret = "microtesla";
-            break;
-        default:
-            ret = "";
-    }
-
-    return ret;
+    return bhi385_str_lut_lookup(table, sizeof(table) / sizeof(table[0]), sensor_id, "");
 }
 
 char *get_sensor_parse_format(uint8_t sensor_id)
 {
-    char *ret;
+    static const bhi385_str_lut_entry table[] = {
+        { BHI385_SENSOR_ID_ACC_PASS, "s16,s16,s16" }, { BHI385_SENSOR_ID_ACC_RAW, "s16,s16,s16" },
+        { BHI385_SENSOR_ID_ACC, "s16,s16,s16" }, { BHI385_SENSOR_ID_ACC_BIAS, "s16,s16,s16" },
+        { BHI385_SENSOR_ID_ACC_BIAS_WU, "s16,s16,s16" }, { BHI385_SENSOR_ID_ACC_WU, "s16,s16,s16" },
+        { BHI385_SENSOR_ID_ACC_RAW_WU, "s16,s16,s16" }, { BHI385_SENSOR_ID_GYRO_PASS, "s16,s16,s16" },
+        { BHI385_SENSOR_ID_GYRO_RAW, "s16,s16,s16" }, { BHI385_SENSOR_ID_GYRO, "s16,s16,s16" },
+        { BHI385_SENSOR_ID_GYRO_BIAS, "s16,s16,s16" }, { BHI385_SENSOR_ID_GYRO_BIAS_WU, "s16,s16,s16" },
+        { BHI385_SENSOR_ID_GYRO_WU, "s16,s16,s16" }, { BHI385_SENSOR_ID_GYRO_RAW_WU, "s16,s16,s16" },
+        { BHI385_SENSOR_ID_MAG_PASS, "s16,s16,s16" }, { BHI385_SENSOR_ID_MAG_RAW, "s16,s16,s16" },
+        { BHI385_SENSOR_ID_MAG, "s16,s16,s16" }, { BHI385_SENSOR_ID_MAG_BIAS, "s16,s16,s16" },
+        { BHI385_SENSOR_ID_MAG_BIAS_WU, "s16,s16,s16" }, { BHI385_SENSOR_ID_MAG_WU, "s16,s16,s16" },
+        { BHI385_SENSOR_ID_MAG_RAW_WU, "s16,s16,s16" }, { BHI385_SENSOR_ID_GRA, "s16,s16,s16" },
+        { BHI385_SENSOR_ID_GRA_WU, "s16,s16,s16" }, { BHI385_SENSOR_ID_LACC, "s16,s16,s16" },
+        { BHI385_SENSOR_ID_LACC_WU, "s16,s16,s16" }, { BHI385_SENSOR_ID_RV, "s16,s16,s16,s16,u16" },
+        { BHI385_SENSOR_ID_RV_WU, "s16,s16,s16,s16,u16" }, { BHI385_SENSOR_ID_GAMERV, "s16,s16,s16,s16,u16" },
+        { BHI385_SENSOR_ID_GAMERV_WU, "s16,s16,s16,s16,u16" }, { BHI385_SENSOR_ID_GEORV, "s16,s16,s16,s16,u16" },
+        { BHI385_SENSOR_ID_GEORV_WU, "s16,s16,s16,s16,u16" }, { BHI385_SENSOR_ID_ORI, "s16,s16,s16" },
+        { BHI385_SENSOR_ID_ORI_WU, "s16,s16,s16" }, { BHI385_SENSOR_ID_DEVICE_ORI, "u8" },
+        { BHI385_SENSOR_ID_DEVICE_ORI_WU, "u8" }, { BHI385_SENSOR_ID_HUM, "u8" }, { BHI385_SENSOR_ID_HUM_WU, "u8" },
+        { BHI385_SENSOR_ID_PROX, "u8" }, { BHI385_SENSOR_ID_PROX_WU, "u8" }, { BHI385_SENSOR_ID_EXCAMERA, "u8" },
+        { BHI385_SENSOR_ID_MULTI_TAP, "u8" }, { BHI385_SENSOR_ID_TEMP, "s16" }, { BHI385_SENSOR_ID_TEMP_WU, "s16" },
+        { BHI385_SENSOR_BMP_TEMPERATURE, "s16" }, { BHI385_SENSOR_BMP_TEMPERATURE_WU, "s16" },
+        { BHI385_SENSOR_ID_BARO, "u24" }, { BHI385_SENSOR_ID_BARO_WU, "u24" }, { BHI385_SENSOR_ID_GAS, "u32" },
+        { BHI385_SENSOR_ID_GAS_WU, "u32" }, { BHI385_SENSOR_ID_STC, "u32" }, { BHI385_SENSOR_ID_STC_WU, "u32" },
+        { BHI385_SENSOR_ID_STC_LP, "u32" }, { BHI385_SENSOR_ID_STC_LP_WU, "u32" },
+        { BHI385_SENSOR_ID_KLIO, "u8,s8,u8,u8,u8,u8,f,f" }, { BHI385_SENSOR_ID_SI_ACCEL, "f,f,f" },
+        { BHI385_SENSOR_ID_SI_GYROS, "f,f,f" }, { BHI385_SENSOR_ID_LIGHT, "s16" }, { BHI385_SENSOR_ID_LIGHT_WU, "s16" },
+        { BHI385_SENSOR_ID_SIG, "" }, { BHI385_SENSOR_ID_STD, "" }, { BHI385_SENSOR_ID_STD_WU, "" },
+        { BHI385_SENSOR_ID_TILT_DETECTOR, "" }, { BHI385_SENSOR_ID_WAKE_GESTURE, "" },
+        { BHI385_SENSOR_ID_GLANCE_GESTURE, "" }, { BHI385_SENSOR_ID_PICKUP_GESTURE, "" },
+        { BHI385_SENSOR_ID_SIG_LP_WU, "" }, { BHI385_SENSOR_ID_STD_LP, "" }, { BHI385_SENSOR_ID_STD_LP_WU, "" },
+        { BHI385_SENSOR_ID_WRIST_TILT_GESTURE, "" }, { BHI385_SENSOR_ID_STATIONARY_DET, "" },
+        { BHI385_SENSOR_ID_ANY_MOTION_LP_WU, "" }, { BHI385_SENSOR_ID_NO_MOTION_LP_WU, "" },
+        { BHI385_SENSOR_ID_MOTION_DET, "" }, { BHI385_SENSOR_ID_WRIST_WEAR_LP_WU, "" }, { BHI385_SENSOR_ID_AR, "u16" },
+        { BHI385_SENSOR_ID_AR_WEAR_WU, "u16" }, { BHI385_SENSOR_ID_GPS, "st" },
+        { BHI385_SENSOR_ID_WRIST_GEST_DETECT_LP_WU, "u8" },
+        { BHI385_SENSOR_ID_AIR_QUALITY, "f32,f32,f32,f32,f32,f32,f32,u8" },
+        { BHI385_SENSOR_ID_HEAD_ORI_MIS_ALG, "s16,s16,s16,s16" },
+        { BHI385_SENSOR_ID_IMU_HEAD_ORI_Q, "s16,s16,s16,s16" }, { BHI385_SENSOR_ID_NDOF_HEAD_ORI_Q, "s16,s16,s16,s16" },
+        { BHI385_SENSOR_ID_IMU_HEAD_ORI_E, "s16,s16,s16" }, { BHI385_SENSOR_ID_NDOF_HEAD_ORI_E, "s16,s16,s16" },
+    };
 
-    switch (sensor_id)
-    {
-        case BHI385_SENSOR_ID_ACC_PASS:
-        case BHI385_SENSOR_ID_ACC_RAW:
-        case BHI385_SENSOR_ID_ACC:
-        case BHI385_SENSOR_ID_ACC_BIAS:
-        case BHI385_SENSOR_ID_ACC_BIAS_WU:
-        case BHI385_SENSOR_ID_ACC_WU:
-        case BHI385_SENSOR_ID_ACC_RAW_WU:
-        case BHI385_SENSOR_ID_GYRO_PASS:
-        case BHI385_SENSOR_ID_GYRO_RAW:
-        case BHI385_SENSOR_ID_GYRO:
-        case BHI385_SENSOR_ID_GYRO_BIAS:
-        case BHI385_SENSOR_ID_GYRO_BIAS_WU:
-        case BHI385_SENSOR_ID_GYRO_WU:
-        case BHI385_SENSOR_ID_GYRO_RAW_WU:
-        case BHI385_SENSOR_ID_MAG_PASS:
-        case BHI385_SENSOR_ID_MAG_RAW:
-        case BHI385_SENSOR_ID_MAG:
-        case BHI385_SENSOR_ID_MAG_BIAS:
-        case BHI385_SENSOR_ID_MAG_BIAS_WU:
-        case BHI385_SENSOR_ID_MAG_WU:
-        case BHI385_SENSOR_ID_MAG_RAW_WU:
-        case BHI385_SENSOR_ID_GRA:
-        case BHI385_SENSOR_ID_GRA_WU:
-        case BHI385_SENSOR_ID_LACC:
-        case BHI385_SENSOR_ID_LACC_WU:
-            ret = "s16,s16,s16";
-            break;
-        case BHI385_SENSOR_ID_RV:
-        case BHI385_SENSOR_ID_RV_WU:
-        case BHI385_SENSOR_ID_GAMERV:
-        case BHI385_SENSOR_ID_GAMERV_WU:
-        case BHI385_SENSOR_ID_GEORV:
-        case BHI385_SENSOR_ID_GEORV_WU:
-            ret = "s16,s16,s16,s16,u16";
-            break;
-        case BHI385_SENSOR_ID_ORI:
-        case BHI385_SENSOR_ID_ORI_WU:
-            ret = "s16,s16,s16";
-            break;
-        case BHI385_SENSOR_ID_DEVICE_ORI:
-        case BHI385_SENSOR_ID_DEVICE_ORI_WU:
-        case BHI385_SENSOR_ID_HUM:
-        case BHI385_SENSOR_ID_HUM_WU:
-        case BHI385_SENSOR_ID_PROX:
-        case BHI385_SENSOR_ID_PROX_WU:
-        case BHI385_SENSOR_ID_EXCAMERA:
-        case BHI385_SENSOR_ID_MULTI_TAP:
-            ret = "u8";
-            break;
-        case BHI385_SENSOR_ID_TEMP:
-        case BHI385_SENSOR_ID_TEMP_WU:
-        case BHI385_SENSOR_BMP_TEMPERATURE:
-        case BHI385_SENSOR_BMP_TEMPERATURE_WU:
-            ret = "s16";
-            break;
-        case BHI385_SENSOR_ID_BARO:
-        case BHI385_SENSOR_ID_BARO_WU:
-            ret = "u24";
-            break;
-        case BHI385_SENSOR_ID_GAS:
-        case BHI385_SENSOR_ID_GAS_WU:
-        case BHI385_SENSOR_ID_STC:
-        case BHI385_SENSOR_ID_STC_WU:
-        case BHI385_SENSOR_ID_STC_LP:
-        case BHI385_SENSOR_ID_STC_LP_WU:
-            ret = "u32";
-            break;
-        case BHI385_SENSOR_ID_KLIO:
-            ret = "u8,s8,u8,u8,u8,u8,f,f";
-            break;
-        case BHI385_SENSOR_ID_SI_ACCEL:
-        case BHI385_SENSOR_ID_SI_GYROS:
-            ret = "f,f,f";
-            break;
-        case BHI385_SENSOR_ID_LIGHT:
-        case BHI385_SENSOR_ID_LIGHT_WU:
-            ret = "s16";
-            break;
-        case BHI385_SENSOR_ID_SIG:
-        case BHI385_SENSOR_ID_STD:
-        case BHI385_SENSOR_ID_STD_WU:
-        case BHI385_SENSOR_ID_TILT_DETECTOR:
-        case BHI385_SENSOR_ID_WAKE_GESTURE:
-        case BHI385_SENSOR_ID_GLANCE_GESTURE:
-        case BHI385_SENSOR_ID_PICKUP_GESTURE:
-        case BHI385_SENSOR_ID_SIG_LP_WU:
-        case BHI385_SENSOR_ID_STD_LP:
-        case BHI385_SENSOR_ID_STD_LP_WU:
-        case BHI385_SENSOR_ID_WRIST_TILT_GESTURE:
-        case BHI385_SENSOR_ID_STATIONARY_DET:
-        case BHI385_SENSOR_ID_ANY_MOTION_LP_WU:
-        case BHI385_SENSOR_ID_NO_MOTION_LP_WU:
-        case BHI385_SENSOR_ID_MOTION_DET:
-        case BHI385_SENSOR_ID_WRIST_WEAR_LP_WU:
-            ret = "";
-            break;
-        case BHI385_SENSOR_ID_AR:
-        case BHI385_SENSOR_ID_AR_WEAR_WU:
-            ret = "u16";
-            break;
-        case BHI385_SENSOR_ID_GPS:
-            ret = "st";
-            break;
-        case BHI385_SENSOR_ID_WRIST_GEST_DETECT_LP_WU:
-            ret = "u8";
-            break;
-        case BHI385_SENSOR_ID_AIR_QUALITY:
-            ret = "f32,f32,f32,f32,f32,f32,f32,u8";
-            break;
-        case BHI385_SENSOR_ID_HEAD_ORI_MIS_ALG:
-        case BHI385_SENSOR_ID_IMU_HEAD_ORI_Q:
-        case BHI385_SENSOR_ID_NDOF_HEAD_ORI_Q:
-            ret = "s16,s16,s16,s16";
-            break;
-
-        case BHI385_SENSOR_ID_IMU_HEAD_ORI_E:
-        case BHI385_SENSOR_ID_NDOF_HEAD_ORI_E:
-            ret = "s16,s16,s16";
-            break;
-        default:
-            ret = "";
-    }
-
-    return ret;
+    return bhi385_str_lut_lookup(table, sizeof(table) / sizeof(table[0]), sensor_id, "");
 }
 
 char *get_sensor_axis_names(uint8_t sensor_id)
 {
-    char *ret;
+    static const bhi385_str_lut_entry table[] = {
+        { BHI385_SENSOR_ID_ACC_PASS, "x,y,z" }, { BHI385_SENSOR_ID_ACC_RAW, "x,y,z" },
+        { BHI385_SENSOR_ID_ACC, "x,y,z" }, { BHI385_SENSOR_ID_ACC_BIAS, "x,y,z" },
+        { BHI385_SENSOR_ID_ACC_BIAS_WU, "x,y,z" }, { BHI385_SENSOR_ID_ACC_WU, "x,y,z" },
+        { BHI385_SENSOR_ID_ACC_RAW_WU, "x,y,z" }, { BHI385_SENSOR_ID_GYRO_PASS, "x,y,z" },
+        { BHI385_SENSOR_ID_GYRO_RAW, "x,y,z" }, { BHI385_SENSOR_ID_GYRO, "x,y,z" },
+        { BHI385_SENSOR_ID_GYRO_BIAS, "x,y,z" }, { BHI385_SENSOR_ID_GYRO_BIAS_WU, "x,y,z" },
+        { BHI385_SENSOR_ID_GYRO_WU, "x,y,z" }, { BHI385_SENSOR_ID_GYRO_RAW_WU, "x,y,z" },
+        { BHI385_SENSOR_ID_MAG_PASS, "x,y,z" }, { BHI385_SENSOR_ID_MAG_RAW, "x,y,z" },
+        { BHI385_SENSOR_ID_MAG, "x,y,z" }, { BHI385_SENSOR_ID_MAG_BIAS, "x,y,z" },
+        { BHI385_SENSOR_ID_MAG_BIAS_WU, "x,y,z" }, { BHI385_SENSOR_ID_MAG_WU, "x,y,z" },
+        { BHI385_SENSOR_ID_MAG_RAW_WU, "x,y,z" }, { BHI385_SENSOR_ID_GRA, "x,y,z" },
+        { BHI385_SENSOR_ID_GRA_WU, "x,y,z" }, { BHI385_SENSOR_ID_LACC, "x,y,z" }, { BHI385_SENSOR_ID_LACC_WU, "x,y,z" },
+        { BHI385_SENSOR_ID_SI_ACCEL, "x,y,z" }, { BHI385_SENSOR_ID_SI_GYROS, "x,y,z" },
+        { BHI385_SENSOR_ID_RV, "x,y,z,w,ar" }, { BHI385_SENSOR_ID_RV_WU, "x,y,z,w,ar" },
+        { BHI385_SENSOR_ID_GAMERV, "x,y,z,w,ar" }, { BHI385_SENSOR_ID_GAMERV_WU, "x,y,z,w,ar" },
+        { BHI385_SENSOR_ID_GEORV, "x,y,z,w,ar" }, { BHI385_SENSOR_ID_GEORV_WU, "x,y,z,w,ar" },
+        { BHI385_SENSOR_ID_ORI, "h,p,r" }, { BHI385_SENSOR_ID_ORI_WU, "h,p,r" }, { BHI385_SENSOR_ID_DEVICE_ORI, "o" },
+        { BHI385_SENSOR_ID_DEVICE_ORI_WU, "o" }, { BHI385_SENSOR_ID_TEMP, "t" }, { BHI385_SENSOR_ID_TEMP_WU, "t" },
+        { BHI385_SENSOR_BMP_TEMPERATURE, "t" }, { BHI385_SENSOR_BMP_TEMPERATURE_WU, "t" },
+        { BHI385_SENSOR_ID_BARO, "p" }, { BHI385_SENSOR_ID_BARO_WU, "p" }, { BHI385_SENSOR_ID_HUM, "h" },
+        { BHI385_SENSOR_ID_HUM_WU, "h" }, { BHI385_SENSOR_ID_GAS, "g" }, { BHI385_SENSOR_ID_GAS_WU, "g" },
+        { BHI385_SENSOR_ID_KLIO, "lin,lid,lpr,lcr,rin,rid,rc,rsc" }, { BHI385_SENSOR_ID_LIGHT, "l" },
+        { BHI385_SENSOR_ID_LIGHT_WU, "l" }, { BHI385_SENSOR_ID_PROX, "p" }, { BHI385_SENSOR_ID_PROX_WU, "p" },
+        { BHI385_SENSOR_ID_STC, "c" }, { BHI385_SENSOR_ID_STC_WU, "c" }, { BHI385_SENSOR_ID_STC_LP, "c" },
+        { BHI385_SENSOR_ID_STC_LP_WU, "c" }, { BHI385_SENSOR_ID_EXCAMERA, "c" }, { BHI385_SENSOR_ID_SIG, "e" },
+        { BHI385_SENSOR_ID_STD, "e" }, { BHI385_SENSOR_ID_STD_WU, "e" }, { BHI385_SENSOR_ID_TILT_DETECTOR, "e" },
+        { BHI385_SENSOR_ID_WAKE_GESTURE, "e" }, { BHI385_SENSOR_ID_GLANCE_GESTURE, "e" },
+        { BHI385_SENSOR_ID_PICKUP_GESTURE, "e" }, { BHI385_SENSOR_ID_SIG_LP_WU, "e" }, { BHI385_SENSOR_ID_STD_LP, "e" },
+        { BHI385_SENSOR_ID_STD_LP_WU, "e" }, { BHI385_SENSOR_ID_WRIST_TILT_GESTURE, "e" },
+        { BHI385_SENSOR_ID_STATIONARY_DET, "e" }, { BHI385_SENSOR_ID_ANY_MOTION_LP_WU, "e" },
+        { BHI385_SENSOR_ID_NO_MOTION_LP_WU, "e" }, { BHI385_SENSOR_ID_MOTION_DET, "e" },
+        { BHI385_SENSOR_ID_WRIST_WEAR_LP_WU, "e" }, { BHI385_SENSOR_ID_AR, "a" }, { BHI385_SENSOR_ID_AR_WEAR_WU, "a" },
+        { BHI385_SENSOR_ID_GPS, "g" }, { BHI385_SENSOR_ID_WRIST_GEST_DETECT_LP_WU, "wrist_gesture" },
+        { BHI385_SENSOR_ID_MULTI_TAP, "taps" }, { BHI385_SENSOR_ID_AIR_QUALITY, "t,h,g,i,si,c,v,a" },
+        { BHI385_SENSOR_ID_HEAD_ORI_MIS_ALG, "x,y,z,w" }, { BHI385_SENSOR_ID_IMU_HEAD_ORI_Q, "x,y,z,w" },
+        { BHI385_SENSOR_ID_NDOF_HEAD_ORI_Q, "x,y,z,w" }, { BHI385_SENSOR_ID_IMU_HEAD_ORI_E, "h,p,r" },
+        { BHI385_SENSOR_ID_NDOF_HEAD_ORI_E, "h,p,r" },
+    };
 
-    switch (sensor_id)
-    {
-        case BHI385_SENSOR_ID_ACC_PASS:
-        case BHI385_SENSOR_ID_ACC_RAW:
-        case BHI385_SENSOR_ID_ACC:
-        case BHI385_SENSOR_ID_ACC_BIAS:
-        case BHI385_SENSOR_ID_ACC_BIAS_WU:
-        case BHI385_SENSOR_ID_ACC_WU:
-        case BHI385_SENSOR_ID_ACC_RAW_WU:
-        case BHI385_SENSOR_ID_GYRO_PASS:
-        case BHI385_SENSOR_ID_GYRO_RAW:
-        case BHI385_SENSOR_ID_GYRO:
-        case BHI385_SENSOR_ID_GYRO_BIAS:
-        case BHI385_SENSOR_ID_GYRO_BIAS_WU:
-        case BHI385_SENSOR_ID_GYRO_WU:
-        case BHI385_SENSOR_ID_GYRO_RAW_WU:
-        case BHI385_SENSOR_ID_MAG_PASS:
-        case BHI385_SENSOR_ID_MAG_RAW:
-        case BHI385_SENSOR_ID_MAG:
-        case BHI385_SENSOR_ID_MAG_BIAS:
-        case BHI385_SENSOR_ID_MAG_BIAS_WU:
-        case BHI385_SENSOR_ID_MAG_WU:
-        case BHI385_SENSOR_ID_MAG_RAW_WU:
-        case BHI385_SENSOR_ID_GRA:
-        case BHI385_SENSOR_ID_GRA_WU:
-        case BHI385_SENSOR_ID_LACC:
-        case BHI385_SENSOR_ID_LACC_WU:
-        case BHI385_SENSOR_ID_SI_ACCEL:
-        case BHI385_SENSOR_ID_SI_GYROS:
-            ret = "x,y,z";
-            break;
-        case BHI385_SENSOR_ID_RV:
-        case BHI385_SENSOR_ID_RV_WU:
-        case BHI385_SENSOR_ID_GAMERV:
-        case BHI385_SENSOR_ID_GAMERV_WU:
-        case BHI385_SENSOR_ID_GEORV:
-        case BHI385_SENSOR_ID_GEORV_WU:
-            ret = "x,y,z,w,ar";
-            break;
-        case BHI385_SENSOR_ID_ORI:
-        case BHI385_SENSOR_ID_ORI_WU:
-            ret = "h,p,r";
-            break;
-        case BHI385_SENSOR_ID_DEVICE_ORI:
-        case BHI385_SENSOR_ID_DEVICE_ORI_WU:
-            ret = "o";
-            break;
-        case BHI385_SENSOR_ID_TEMP:
-        case BHI385_SENSOR_ID_TEMP_WU:
-        case BHI385_SENSOR_BMP_TEMPERATURE:
-        case BHI385_SENSOR_BMP_TEMPERATURE_WU:
-            ret = "t";
-            break;
-        case BHI385_SENSOR_ID_BARO:
-        case BHI385_SENSOR_ID_BARO_WU:
-            ret = "p";
-            break;
-        case BHI385_SENSOR_ID_HUM:
-        case BHI385_SENSOR_ID_HUM_WU:
-            ret = "h";
-            break;
-        case BHI385_SENSOR_ID_GAS:
-        case BHI385_SENSOR_ID_GAS_WU:
-            ret = "g";
-            break;
-        case BHI385_SENSOR_ID_KLIO:
-            ret = "lin,lid,lpr,lcr,rin,rid,rc,rsc";
-            break;
-        case BHI385_SENSOR_ID_LIGHT:
-        case BHI385_SENSOR_ID_LIGHT_WU:
-            ret = "l";
-            break;
-        case BHI385_SENSOR_ID_PROX:
-        case BHI385_SENSOR_ID_PROX_WU:
-            ret = "p";
-            break;
-        case BHI385_SENSOR_ID_STC:
-        case BHI385_SENSOR_ID_STC_WU:
-        case BHI385_SENSOR_ID_STC_LP:
-        case BHI385_SENSOR_ID_STC_LP_WU:
-        case BHI385_SENSOR_ID_EXCAMERA:
-            ret = "c";
-            break;
-        case BHI385_SENSOR_ID_SIG:
-        case BHI385_SENSOR_ID_STD:
-        case BHI385_SENSOR_ID_STD_WU:
-        case BHI385_SENSOR_ID_TILT_DETECTOR:
-        case BHI385_SENSOR_ID_WAKE_GESTURE:
-        case BHI385_SENSOR_ID_GLANCE_GESTURE:
-        case BHI385_SENSOR_ID_PICKUP_GESTURE:
-        case BHI385_SENSOR_ID_SIG_LP_WU:
-        case BHI385_SENSOR_ID_STD_LP:
-        case BHI385_SENSOR_ID_STD_LP_WU:
-        case BHI385_SENSOR_ID_WRIST_TILT_GESTURE:
-        case BHI385_SENSOR_ID_STATIONARY_DET:
-        case BHI385_SENSOR_ID_ANY_MOTION_LP_WU:
-        case BHI385_SENSOR_ID_NO_MOTION_LP_WU:
-        case BHI385_SENSOR_ID_MOTION_DET:
-        case BHI385_SENSOR_ID_WRIST_WEAR_LP_WU:
-            ret = "e";
-            break;
-        case BHI385_SENSOR_ID_AR:
-        case BHI385_SENSOR_ID_AR_WEAR_WU:
-            ret = "a";
-            break;
-        case BHI385_SENSOR_ID_GPS:
-            ret = "g";
-            break;
-        case BHI385_SENSOR_ID_WRIST_GEST_DETECT_LP_WU:
-            ret = "wrist_gesture";
-            break;
-        case BHI385_SENSOR_ID_MULTI_TAP:
-            ret = "taps";
-            break;
-        case BHI385_SENSOR_ID_AIR_QUALITY:
-            ret = "t,h,g,i,si,c,v,a";
-            break;
-        case BHI385_SENSOR_ID_HEAD_ORI_MIS_ALG:
-        case BHI385_SENSOR_ID_IMU_HEAD_ORI_Q:
-        case BHI385_SENSOR_ID_NDOF_HEAD_ORI_Q:
-            ret = "x,y,z,w";
-            break;
-        case BHI385_SENSOR_ID_IMU_HEAD_ORI_E:
-        case BHI385_SENSOR_ID_NDOF_HEAD_ORI_E:
-            ret = "h,p,r";
-            break;
-        default:
-            ret = "";
-
-    }
-
-    return ret;
+    return bhi385_str_lut_lookup(table, sizeof(table) / sizeof(table[0]), sensor_id, "");
 }
 
 char *get_klio_error(bhi385_klio_param_driver_error_state_t error)

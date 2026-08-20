@@ -31,8 +31,8 @@
 * POSSIBILITY OF SUCH DAMAGE.
 *
 * @file       bhi385.c
-* @date       2025-12-15
-* @version    v2.1.0
+* @date       2026-07-22
+* @version    v2.1.1
 *
 */
 
@@ -1408,6 +1408,38 @@ int8_t bhi385_read_status(uint16_t *status_code,
     return rslt;
 }
 
+static void parse_status_log_dostep(struct bhi385_fifo_buffer *fifo_p, buffer_status_t *status)
+{
+    int8_t rslt = get_buffer_status(fifo_p, BHI385_LOG_DOSTEP_RD_FIFO_SIZE, status);
+
+    rslt = check_return_value(rslt);
+    (void)rslt;
+
+    if (*status != BHI385_BUFFER_STATUS_OK)
+    {
+        return;
+    }
+
+    fifo_p->read_pos += BHI385_LOG_DOSTEP_RD_FIFO_SIZE;
+}
+
+static void parse_status_meta_event(struct bhi385_fifo_buffer *fifo_p, buffer_status_t *status)
+{
+    int8_t rslt = get_buffer_status(fifo_p, BHI385_META_EVENTS_RD_FIFO_SIZE, status); /*lint !e838 suppressing
+                                                    * previously assigned value
+                                                    * not used info */
+
+    rslt = check_return_value(rslt);
+    (void)rslt;
+
+    if (*status != BHI385_BUFFER_STATUS_OK)
+    {
+        return;
+    }
+
+    fifo_p->read_pos += BHI385_META_EVENTS_RD_FIFO_SIZE;
+}
+
 static int8_t parse_status_fifo(struct bhi385_fifo_buffer *fifo_p, struct bhi385_dev *dev)
 {
     uint8_t tmp_sensor_id = 0;
@@ -1429,7 +1461,7 @@ static int8_t parse_status_fifo(struct bhi385_fifo_buffer *fifo_p, struct bhi385
         {
             case BHI385_SYS_ID_FILLER:
             case BHI385_SYS_ID_PADDING:
-                fifo_p->read_pos += 1;
+                fifo_p->read_pos += BHI385_FILLER_PADDING_RD_FIFO_SIZE;
                 break;
             case BHI385_SYS_ID_TS_SMALL_DELTA_WU:
             case BHI385_SYS_ID_TS_SMALL_DELTA:
@@ -1457,16 +1489,7 @@ static int8_t parse_status_fifo(struct bhi385_fifo_buffer *fifo_p, struct bhi385
                 fifo_p->read_pos += BHI385_TS_LARGE_DELTA_RD_FIFO_SIZE;
                 break;
             case BHI385_SYS_ID_BHI385_LOG_DOSTEP:
-                rslt = get_buffer_status(fifo_p, BHI385_LOG_DOSTEP_RD_FIFO_SIZE, &status);
-                rslt = check_return_value(rslt);
-
-                if (status != BHI385_BUFFER_STATUS_OK)
-                {
-                    break;
-                }
-
-                fifo_p->read_pos += BHI385_LOG_DOSTEP_RD_FIFO_SIZE;
-
+                parse_status_log_dostep(fifo_p, &status);
                 break;
             case BHI385_SYS_ID_TS_FULL:
             case BHI385_SYS_ID_TS_FULL_WU:
@@ -1481,7 +1504,7 @@ static int8_t parse_status_fifo(struct bhi385_fifo_buffer *fifo_p, struct bhi385
                 *time_stamp = BHI385_LE2U40(fifo_p->buffer + tmp_read_pos + UINT8_C(1));
                 fifo_p->read_pos += BHI385_TS_FULL_RD_FIFO_SIZE;
                 break;
-            default:
+            case BHI385_SYS_ID_DEBUG_MSG:
                 rslt = get_callback_info(tmp_sensor_id, &info, dev);
                 rslt = check_return_value(rslt);
                 rslt = get_buffer_status(fifo_p, dev->event_size[tmp_sensor_id], &status); /*lint !e838 suppressing
@@ -1505,6 +1528,9 @@ static int8_t parse_status_fifo(struct bhi385_fifo_buffer *fifo_p, struct bhi385
                 }
 
                 fifo_p->read_pos += dev->event_size[tmp_sensor_id];
+                break;
+            default:
+                parse_status_meta_event(fifo_p, &status);
                 break;
         }
     }
