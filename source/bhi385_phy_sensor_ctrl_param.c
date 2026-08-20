@@ -31,8 +31,8 @@
 * POSSIBILITY OF SUCH DAMAGE.
 *
 * @file       bhi385_phy_sensor_ctrl_param.c
-* @date       2025-12-15
-* @version    v2.1.0
+* @date       2026-07-22
+* @version    v2.1.1
 *
 */
 

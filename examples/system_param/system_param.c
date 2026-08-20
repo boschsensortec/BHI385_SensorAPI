@@ -46,6 +46,9 @@
 
 #include "bhi385/Bosch_Shuttle3_BHI385_bsxsam_lite.fw.h"
 
+static void print_virtual_sensor_list(struct bhi385_dev *bhy);
+static void print_physical_sensor_list(struct bhi385_dev *bhy);
+
 int main(void)
 {
     /*! Device structure */
@@ -186,49 +189,9 @@ int main(void)
         printf("ort_mtx.c[0] after changed = %+02d\r\n", ort_mtx.c[0]);
     }
 
-    rslt = bhi385_system_param_get_virtual_sensor_present(&bhy);
-    print_api_error(rslt, &bhy);
+    print_virtual_sensor_list(&bhy);
 
-    if (rslt == BHI385_OK)
-    {
-        printf("\r\n");
-        printf("Virtual sensor list.\r\n");
-        printf("Sensor ID |                          Sensor Name\r\n");
-        printf("----------+--------------------------------------|\r\n");
-
-        for (uint8_t i = 0; i < BHI385_SENSOR_ID_MAX; i++)
-        {
-            if (bhi385_is_sensor_available(i, &bhy))
-            {
-                if (i < BHI385_SENSOR_ID_CUSTOM_START)
-                {
-                    printf(" %8u | %36s \r\n", i, get_sensor_name(i));
-                }
-                else
-                {
-                    printf(" %8u | Undefined custom sensor\n", i);
-                }
-            }
-        }
-    }
-
-    rslt = bhi385_system_param_get_physical_sensor_present(&bhy);
-    print_api_error(rslt, &bhy);
-
-    if (rslt == BHI385_OK)
-    {
-        printf("\r\n");
-        printf("Physical sensor list.\r\n");
-        printf("Sensor ID |                          Sensor Name\r\n");
-        printf("----------+--------------------------------------|\r\n");
-        for (uint8_t i = 0; i < BHI385_PHYSICAL_SENSOR_ID_MAX; i++)
-        {
-            if (bhi385_is_physical_sensor_available(i, &bhy))
-            {
-                printf(" %8u | %36s \r\n", i, get_physical_sensor_name(i));
-            }
-        }
-    }
+    print_physical_sensor_list(&bhy);
 
     rslt = bhi385_system_param_get_timestamps(&ts, &bhy);
     print_api_error(rslt, &bhy);
@@ -385,4 +348,58 @@ int main(void)
     close_interfaces(intf);
 
     return rslt;
+}
+
+static void print_virtual_sensor_list(struct bhi385_dev *bhy)
+{
+    int8_t rslt;
+
+    rslt = bhi385_system_param_get_virtual_sensor_present(bhy);
+    print_api_error(rslt, bhy);
+
+    if (rslt == BHI385_OK)
+    {
+        printf("\r\n");
+        printf("Virtual sensor list.\r\n");
+        printf("Sensor ID |                          Sensor Name\r\n");
+        printf("----------+--------------------------------------|\r\n");
+
+        for (uint8_t i = 0; i < BHI385_SENSOR_ID_MAX; i++)
+        {
+            if (bhi385_is_sensor_available(i, bhy))
+            {
+                if (i < BHI385_SENSOR_ID_CUSTOM_START)
+                {
+                    printf(" %8u | %36s \r\n", i, get_sensor_name(i));
+                }
+                else
+                {
+                    printf(" %8u | Undefined custom sensor\n", i);
+                }
+            }
+        }
+    }
+}
+
+static void print_physical_sensor_list(struct bhi385_dev *bhy)
+{
+    int8_t rslt;
+
+    rslt = bhi385_system_param_get_physical_sensor_present(bhy);
+    print_api_error(rslt, bhy);
+
+    if (rslt == BHI385_OK)
+    {
+        printf("\r\n");
+        printf("Physical sensor list.\r\n");
+        printf("Sensor ID |                          Sensor Name\r\n");
+        printf("----------+--------------------------------------|\r\n");
+        for (uint8_t i = 0; i < BHI385_PHYSICAL_SENSOR_ID_MAX; i++)
+        {
+            if (bhi385_is_physical_sensor_available(i, bhy))
+            {
+                printf(" %8u | %36s \r\n", i, get_physical_sensor_name(i));
+            }
+        }
+    }
 }

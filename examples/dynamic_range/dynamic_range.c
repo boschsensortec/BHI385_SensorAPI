@@ -33,6 +33,7 @@
  * @file    dynamic_range.c
  * @brief   Example to change sensor dynamic range
  *
+ * Note: Parts of the code in this file are from GenAI GitHub Copilot
  */
 #include <stdio.h>
 #include "common.h"
@@ -279,42 +280,41 @@ static void parse_3axis(const struct bhi385_fifo_parse_data_info *callback_info,
     }
 }
 
+/*!
+ * @brief Lookup table entry mapping a virtual sensor ID to the index of its
+ *        underlying physical sensor in the dynamic_range[] array.
+ */
+typedef struct
+{
+    uint8_t sensor_id;
+    uint8_t phys_idx;
+} sensor_phys_idx_lut_entry;
+
 static float get_sensor_scaling(uint8_t sensor_id, uint16_t dynamic_range[])
 {
-    float scaling = -1.0f;
+    static const sensor_phys_idx_lut_entry table[] = {
+        { BHI385_SENSOR_ID_ACC_PASS, PHYSICAL_ACCEL_ID }, { BHI385_SENSOR_ID_ACC_RAW, PHYSICAL_ACCEL_ID },
+        { BHI385_SENSOR_ID_ACC, PHYSICAL_ACCEL_ID }, { BHI385_SENSOR_ID_ACC_BIAS, PHYSICAL_ACCEL_ID },
+        { BHI385_SENSOR_ID_ACC_WU, PHYSICAL_ACCEL_ID }, { BHI385_SENSOR_ID_ACC_RAW_WU, PHYSICAL_ACCEL_ID },
+        { BHI385_SENSOR_ID_GYRO_PASS, PHYSICAL_GYRO_ID }, { BHI385_SENSOR_ID_GYRO_RAW, PHYSICAL_GYRO_ID },
+        { BHI385_SENSOR_ID_GYRO, PHYSICAL_GYRO_ID }, { BHI385_SENSOR_ID_GYRO_BIAS, PHYSICAL_GYRO_ID },
+        { BHI385_SENSOR_ID_GYRO_WU, PHYSICAL_GYRO_ID }, { BHI385_SENSOR_ID_GYRO_RAW_WU, PHYSICAL_GYRO_ID },
+        { BHI385_SENSOR_ID_GYRO_BIAS_WU, PHYSICAL_GYRO_ID }, { BHI385_SENSOR_ID_MAG_PASS, PHYSICAL_MAG_ID },
+        { BHI385_SENSOR_ID_MAG_RAW, PHYSICAL_MAG_ID }, { BHI385_SENSOR_ID_MAG, PHYSICAL_MAG_ID },
+        { BHI385_SENSOR_ID_MAG_BIAS, PHYSICAL_MAG_ID }, { BHI385_SENSOR_ID_MAG_WU, PHYSICAL_MAG_ID },
+        { BHI385_SENSOR_ID_MAG_RAW_WU, PHYSICAL_MAG_ID }, { BHI385_SENSOR_ID_MAG_BIAS_WU, PHYSICAL_MAG_ID },
+    };
+    size_t i;
 
-    switch (sensor_id)
+    for (i = 0; i < sizeof(table) / sizeof(table[0]); i++)
     {
-        case BHI385_SENSOR_ID_ACC_PASS:
-        case BHI385_SENSOR_ID_ACC_RAW:
-        case BHI385_SENSOR_ID_ACC:
-        case BHI385_SENSOR_ID_ACC_BIAS:
-        case BHI385_SENSOR_ID_ACC_WU:
-        case BHI385_SENSOR_ID_ACC_RAW_WU:
-            scaling = dynamic_range[PHYSICAL_ACCEL_ID] / 32768.0f;
-            break;
-        case BHI385_SENSOR_ID_GYRO_PASS:
-        case BHI385_SENSOR_ID_GYRO_RAW:
-        case BHI385_SENSOR_ID_GYRO:
-        case BHI385_SENSOR_ID_GYRO_BIAS:
-        case BHI385_SENSOR_ID_GYRO_WU:
-        case BHI385_SENSOR_ID_GYRO_RAW_WU:
-        case BHI385_SENSOR_ID_GYRO_BIAS_WU:
-            scaling = dynamic_range[PHYSICAL_GYRO_ID] / 32768.0f;
-            break;
-        case BHI385_SENSOR_ID_MAG_PASS:
-        case BHI385_SENSOR_ID_MAG_RAW:
-        case BHI385_SENSOR_ID_MAG:
-        case BHI385_SENSOR_ID_MAG_BIAS:
-        case BHI385_SENSOR_ID_MAG_WU:
-        case BHI385_SENSOR_ID_MAG_RAW_WU:
-        case BHI385_SENSOR_ID_MAG_BIAS_WU:
-            scaling = dynamic_range[PHYSICAL_MAG_ID] / 32768.0f;
-            break;
-        default:
-            printf("Sensor ID not supported for dynamic range scaling\r\n");
-            scaling = -1.0f; /* Do not apply the scaling factor */
+        if (table[i].sensor_id == sensor_id)
+        {
+            return dynamic_range[table[i].phys_idx] / 32768.0f;
+        }
     }
 
-    return scaling;
+    printf("Sensor ID not supported for dynamic range scaling\r\n");
+
+    return -1.0f; /* Do not apply the scaling factor */
 }

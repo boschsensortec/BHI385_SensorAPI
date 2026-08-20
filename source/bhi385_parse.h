@@ -31,8 +31,8 @@
 * POSSIBILITY OF SUCH DAMAGE.
 *
 * @file       bhi385_parse.h
-* @date       2025-12-15
-* @version    v2.1.0
+* @date       2026-07-22
+* @version    v2.1.1
 *
 */
 #ifndef __BHI385_PARSE_H__

@@ -31,8 +31,8 @@
 * POSSIBILITY OF SUCH DAMAGE.
 *
 * @file       bhi385_defs.h
-* @date       2025-12-15
-* @version    v2.1.0
+* @date       2026-07-22
+* @version    v2.1.1
 *
 */
 
@@ -741,8 +741,10 @@ extern "C" {
 #endif
 
 /* Macros to replace the constants */
+#define BHI385_FILLER_PADDING_RD_FIFO_SIZE                             UINT8_C(1)
 #define BHI385_TS_SMALL_DELTA_FIFO_RD_SIZE                             UINT8_C(2)
 #define BHI385_TS_LARGE_DELTA_RD_FIFO_SIZE                             UINT8_C(3)
+#define BHI385_META_EVENTS_RD_FIFO_SIZE                                UINT8_C(4)
 #define BHI385_TS_FULL_RD_FIFO_SIZE                                    UINT8_C(6)
 #define BHI385_LOG_DOSTEP_RD_FIFO_SIZE                                 UINT8_C(23)
 #define BHI385_FOC_STATUS_RD_FIFO_SIZE                                 UINT8_C(12)
